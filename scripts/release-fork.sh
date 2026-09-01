@@ -162,7 +162,9 @@ stage_binary() {
 		die "platform mismatch: archive wants $target, binary is: $identity"
 	stage="$(mktemp -d)"
 	install -m 0755 "$bin_src" "$stage/$BIN"
-	tar -C "$stage" -czf "$DIST/$archive" "$BIN"
+	# bsdtar on macOS records Apple xattrs as PAX headers that GNU tar warns
+	# about; ship plain archives like upstream.
+	COPYFILE_DISABLE=1 tar --no-xattrs -C "$stage" -czf "$DIST/$archive" "$BIN"
 	rm -rf "$stage"
 	echo "staged $DIST/$archive"
 }
