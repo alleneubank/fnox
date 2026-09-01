@@ -233,3 +233,29 @@ EOF
 	assert_failure
 	assert_output --partial "Secret 'BASE_ONLY' not found"
 }
+
+@test "daemon keeps serving after its spawn directory is deleted" {
+	daemon_config
+
+	mkdir "$TEST_TEMP_DIR/spawn-dir"
+	cd "$TEST_TEMP_DIR/spawn-dir"
+	run "$FNOX_BIN" get FOO
+	assert_success
+	assert_output "bar"
+
+	run "$FNOX_BIN" daemon status
+	assert_success
+	spawned_pid="$(printf '%s\n' "$output" | sed -n 's/^pid: //p')"
+	[ -n "$spawned_pid" ]
+
+	cd "$TEST_TEMP_DIR"
+	rm -rf "$TEST_TEMP_DIR/spawn-dir"
+
+	run "$FNOX_BIN" get FOO
+	assert_success
+	assert_output "bar"
+
+	run "$FNOX_BIN" daemon status
+	assert_success
+	assert_output --partial "pid: $spawned_pid"
+}

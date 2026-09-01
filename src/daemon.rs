@@ -562,6 +562,10 @@ async fn start_background_for_context(
             });
         }
     }
+    // Anchor the daemon at the filesystem root so it never depends on the
+    // caller's directory, which may be deleted later (e.g. a git worktree);
+    // each request switches to the client's cwd itself.
+    cmd.current_dir("/");
     cmd.stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
