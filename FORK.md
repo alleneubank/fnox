@@ -12,9 +12,8 @@ Remotes are roles: `source_remote` is jdx/fnox, `fork_remote` is this repo.
 
 ## Carried commits
 
-| Commit                                                      | Upstream status                                                        |
-| ----------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `fix(daemon): anchor spawned daemon cwd at filesystem root` | reported in jdx/fnox discussion #793; PR branch `fix/daemon-spawn-cwd` |
+None. `fix(daemon): anchor spawned daemon cwd at filesystem root` was dropped
+after upstream shipped the same fix in jdx/fnox#795 (v1.35.0).
 
 Rebase `main` onto `source_remote/main` when upstream moves; drop a carried
 commit once upstream ships it.
