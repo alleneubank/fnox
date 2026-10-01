@@ -79,3 +79,28 @@ EOF
 	[[ $stderr != *"fake-neighbor-value"* ]]
 	[[ $stderr != *"fake-token-value"* ]]
 }
+
+@test "daemon get fails non-zero when the provider fails in non-interactive mode" {
+	fake_pass <<'EOF'
+#!/bin/sh
+echo 'Error: provider unavailable' >&2
+exit 1
+EOF
+	cat >fnox.toml <<'EOF'
+root = true
+
+[daemon]
+enabled = true
+
+[providers.pass]
+type = "password-store"
+
+[secrets]
+TOKEN = { provider = "pass", value = "token" }
+EOF
+
+	run --separate-stderr "$FNOX_BIN" --non-interactive get TOKEN
+	assert_failure
+	assert_output ""
+	[[ $stderr == *"command failed"* ]]
+}

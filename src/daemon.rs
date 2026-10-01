@@ -973,7 +973,7 @@ async fn process_request(
                 include_all_modes: true,
                 env: req.env,
             };
-            let secrets = [(req.key, secret_config)].into_iter().collect();
+            let secrets = [(req.key.clone(), secret_config)].into_iter().collect();
             if let Some(foreground) = foreground_resolution_if_needed(
                 &config,
                 &batch_req.profile,
@@ -989,11 +989,48 @@ async fn process_request(
                     keys: foreground.keys,
                 });
             }
-            let values =
-                resolve_with_cache(&config, &batch_req.profile, secrets, &batch_req, state).await?;
-            Ok(Response::Resolved { values })
+            let value =
+                resolve_one_with_cache(&config, &req.key, &secrets[&req.key], &batch_req, state)
+                    .await?;
+            Ok(Response::Resolved {
+                values: [(req.key, value)].into_iter().collect(),
+            })
         }
     }
+}
+
+/// Resolves a single secret with the same error semantics as the direct
+/// (daemon-less) path: a provider failure is returned as an error rather than
+/// downgraded to a missing value by the batch resolver's `if_missing` policy.
+async fn resolve_one_with_cache(
+    config: &Config,
+    key: &str,
+    secret: &SecretConfig,
+    req: &ResolveBatchRequest,
+    state: std::sync::Arc<Mutex<DaemonState>>,
+) -> Result<Option<String>> {
+    let profile = req.profile.as_slice();
+    let fingerprint = config_fingerprint(config, &req.env)?;
+    let providers = config.get_providers(profile)?;
+    let default_provider = cache_policy_default_provider(config, profile, &providers);
+    let cache_key = secret_is_cacheable(&providers, default_provider, secret, req)
+        .then(|| cache_key(&fingerprint, profile, key, secret, req));
+
+    if let Some(cache_key) = &cache_key
+        && let Some(Some(value)) = state.lock().await.cache.get(cache_key)
+    {
+        return Ok(Some(value.clone()));
+    }
+
+    let value = crate::secret_resolver::resolve_secret(config, profile, key, secret).await?;
+    if let (Some(cache_key), Some(value)) = (cache_key, &value) {
+        state
+            .lock()
+            .await
+            .cache
+            .insert(cache_key, Some(value.clone()));
+    }
+    Ok(value)
 }
 
 fn secret_is_cacheable(
