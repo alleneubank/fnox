@@ -2,6 +2,7 @@ use crate::config::{Config, ProviderConfig, SecretConfig};
 use crate::error::Result;
 use crate::secret_resolver;
 use indexmap::IndexMap;
+use miette::Diagnostic;
 
 use crate::commands::Cli;
 
@@ -11,11 +12,18 @@ pub struct CheckCommand {
     /// Check all secrets including those with if_missing=warn or if_missing=ignore
     #[usage(short = 'a', long)]
     all: bool,
+
+    /// Secrets to check. Each one is resolved regardless of its if_missing policy and
+    /// reported only as resolved or failed; values and provider output are never printed
+    keys: Vec<String>,
 }
 
 impl CheckCommand {
     pub async fn run(&self, cli: &Cli, config: Config) -> Result<()> {
         config.validate()?;
+        if !self.keys.is_empty() {
+            return self.check_keys(cli, &config).await;
+        }
         let profile = Config::get_profiles(cli.profile.as_slice());
         let profile_display = Config::display_profiles(&profile);
 
@@ -249,6 +257,65 @@ impl CheckCommand {
             std::process::exit(1);
         }
 
+        Ok(())
+    }
+
+    /// Resolve each named secret and report whether it produced a value.
+    ///
+    /// Output is limited to fnox-authored text. A failure is reported by its
+    /// diagnostic code, not its message, because provider messages relay the
+    /// provider's own stderr, which fnox cannot vouch is free of secret material.
+    async fn check_keys(&self, cli: &Cli, config: &Config) -> Result<()> {
+        let profile = Config::get_profiles(cli.profile.as_slice());
+        let profile_display = Config::display_profiles(&profile);
+        let secrets = config.get_secrets(&profile)?;
+        let leases = config.get_leases(&profile)?;
+        let mut failures = 0usize;
+
+        for key in &self.keys {
+            let Some(secret_config) = secrets.get(key) else {
+                failures += 1;
+                if leases.values().any(|lease| lease.produces_env_var(key)) {
+                    eprintln!("✗ {key}: produced by a lease; check it with `fnox lease`");
+                } else {
+                    eprintln!("✗ {key}: not defined in profile(s) '{profile_display}'");
+                }
+                continue;
+            };
+
+            match crate::daemon::resolve_one(
+                cli,
+                config,
+                &profile,
+                key,
+                secret_config,
+                crate::daemon::Purpose::Check,
+            )
+            .await
+            {
+                Ok(Some(value)) if value.is_empty() => {
+                    println!("✓ {key} resolves to an empty value")
+                }
+                Ok(Some(_)) => println!("✓ {key} resolves"),
+                Ok(None) => {
+                    failures += 1;
+                    eprintln!("✗ {key}: no value found");
+                }
+                Err(err) => {
+                    failures += 1;
+                    let code = err
+                        .code()
+                        .map_or_else(|| "fnox::error".to_string(), |code| code.to_string());
+                    eprintln!(
+                        "✗ {key}: failed to resolve ({code}); `fnox get {key}` shows the provider's message"
+                    );
+                }
+            }
+        }
+
+        if failures > 0 {
+            std::process::exit(1);
+        }
         Ok(())
     }
 }

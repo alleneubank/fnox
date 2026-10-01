@@ -36,6 +36,7 @@ cmd check help="Check if all required secrets are defined and configured" {
     alias c
     flag "-a --all" help="Check all secrets including those with if_missing=warn or if_missing=ignore"
     flag "-h --help" help="Print help" action=help builtin=#true
+    arg "[KEYS]..." help="Secrets to check. Each one is resolved regardless of its if_missing policy and reported only as resolved or failed; values and provider output are never printed"
 }
 cmd ci-redact help="Redact secrets in CI/CD output (GitHub Actions mask)" hide=#true {
     flag "-h --help" help="Print help" action=help builtin=#true

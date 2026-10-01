@@ -6,10 +6,14 @@ description: "Usage and examples for fnox check. By default, check validates req
 
 # `fnox check`
 
-- **Usage:** `fnox check [-a --all]`
+- **Usage:** `fnox check [-a --all] [KEYS]…`
 - **Aliases:** `c`
 
 Check if all required secrets are defined and configured
+
+## Arguments
+
+- **`[KEYS]…`** — Secrets to check. Each one is resolved regardless of its if_missing policy and reported only as resolved or failed; values and provider output are never printed
 
 ## Flags
 
@@ -20,11 +24,12 @@ Check if all required secrets are defined and configured
 
 ## Examples
 
-By default, check validates required secrets. Use --all to also check secrets whose missing-value policy is warn or ignore. The command validates resolution without printing resolved values.
+By default, check validates required secrets. Use --all to also check secrets whose missing-value policy is warn or ignore. The command validates resolution without printing resolved values. Name secrets to check only those: each is resolved regardless of its missing-value policy and reported as resolved or failed, without printing the value or the provider's error text, so scripts and agents can test access safely.
 
 ```sh
 fnox check --all
 fnox check --all --profile production
+fnox check DATABASE_URL API_KEY
 ```
 
 ## Related

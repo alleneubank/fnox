@@ -57,9 +57,20 @@
       },
       "check": {
         "full_cmd": ["check"],
-        "usage": "check [-a --all]",
+        "usage": "check [-a --all] [KEYS]…",
         "subcommands": {},
-        "args": [],
+        "args": [
+          {
+            "name": "KEYS",
+            "usage": "[KEYS]…",
+            "help": "Secrets to check. Each one is resolved regardless of its if_missing policy and reported only as resolved or failed; values and provider output are never printed",
+            "help_first_line": "Secrets to check. Each one is resolved regardless of its if_missing policy and reported only as resolved or failed; values and provider output are never printed",
+            "required": false,
+            "double_dash": "Optional",
+            "var": true,
+            "hide": false
+          }
+        ],
         "flags": [
           {
             "name": "all",

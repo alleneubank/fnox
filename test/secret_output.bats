@@ -104,3 +104,64 @@ EOF
 	assert_output ""
 	[[ $stderr == *"command failed"* ]]
 }
+
+@test "check KEY reports resolvability without printing the value" {
+	fake_pass <<'EOF'
+#!/bin/sh
+printf 'fake-secret-value\n'
+EOF
+	cat >fnox.toml <<'EOF'
+root = true
+
+[providers.pass]
+type = "password-store"
+
+[secrets]
+TOKEN = { provider = "pass", value = "token", if_missing = "ignore" }
+EOF
+
+	run --separate-stderr "$FNOX_BIN" check TOKEN
+	assert_success
+	assert_output --partial "TOKEN"
+	[[ $output != *"fake-secret-value"* ]]
+	[[ $stderr != *"fake-secret-value"* ]]
+}
+
+@test "check KEY fails without relaying provider output" {
+	fake_pass <<'EOF'
+#!/bin/sh
+echo 'Error: could not read fake-secret-value' >&2
+exit 1
+EOF
+	cat >fnox.toml <<'EOF'
+root = true
+
+[providers.pass]
+type = "password-store"
+
+[secrets]
+TOKEN = { provider = "pass", value = "token" }
+EOF
+
+	run --separate-stderr "$FNOX_BIN" check TOKEN
+	assert_failure
+	[[ $stderr == *"TOKEN"* ]]
+	[[ $output != *"fake-secret-value"* ]]
+	[[ $stderr != *"fake-secret-value"* ]]
+}
+
+@test "check KEY fails for an undefined secret" {
+	cat >fnox.toml <<'EOF'
+root = true
+
+[providers.plain]
+type = "plain"
+
+[secrets]
+TOKEN = { provider = "plain", value = "x" }
+EOF
+
+	run --separate-stderr "$FNOX_BIN" check MISSING
+	assert_failure
+	[[ $stderr == *"MISSING"* ]]
+}

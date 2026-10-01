@@ -52,7 +52,7 @@ New to fnox? Follow the [quick start](/guide/quick-start). Put fnox options befo
 ## Subcommands
 
 - [`fnox activate [--no-hook-env] [SHELL]`](/cli/activate.md)
-- [`fnox check [-a --all]`](/cli/check.md)
+- [`fnox check [-a --all] [KEYS]…`](/cli/check.md)
 - [`fnox completion <SHELL>`](/cli/completion.md)
 - [`fnox config-files`](/cli/config-files.md)
 - [`fnox daemon <SUBCOMMAND>`](/cli/daemon.md)

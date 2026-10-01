@@ -72,6 +72,7 @@ out of version control.
 
 ```sh
 fnox check --all
+fnox check DATABASE_URL
 fnox exec -- npm start
 fnox exec --profile staging --if-missing error -- ./app
 fnox exec -- sh -c 'test -n "$DATABASE_URL"'
@@ -85,8 +86,11 @@ credential leases.
 
 `check` normally checks required secrets; `--all` also checks secrets configured
 to warn or ignore when missing. It resolves secrets without printing their
-values. For unattended commands, add `--non-interactive` to prevent prompts and
-browser authentication flows; provider credentials must already be available.
+values. `fnox check KEY` checks one named secret and reports only whether it
+resolved; use it, not `fnox get KEY >/dev/null`, to verify access, because `get`
+relays provider error text on stderr. For unattended commands, add
+`--non-interactive` to prevent prompts and browser authentication flows;
+provider credentials must already be available.
 
 For profile-specific diagnosis, select the same profile for both commands:
 

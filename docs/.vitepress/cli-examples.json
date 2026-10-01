@@ -10,8 +10,8 @@
     "links": ["/guide/shell-integration"]
   },
   "check": {
-    "note": "By default, check validates required secrets. Use --all to also check secrets whose missing-value policy is warn or ignore. The command validates resolution without printing resolved values.",
-    "commands": "fnox check --all\nfnox check --all --profile production",
+    "note": "By default, check validates required secrets. Use --all to also check secrets whose missing-value policy is warn or ignore. The command validates resolution without printing resolved values. Name secrets to check only those: each is resolved regardless of its missing-value policy and reported as resolved or failed, without printing the value or the provider's error text, so scripts and agents can test access safely.",
+    "commands": "fnox check --all\nfnox check --all --profile production\nfnox check DATABASE_URL API_KEY",
     "links": ["/guide/troubleshooting", "/guide/missing-secrets"]
   },
   "completion": {
