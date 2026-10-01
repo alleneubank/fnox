@@ -757,7 +757,7 @@ impl Config {
         })?;
 
         // Register the source for error reporting
-        source_registry::register(path, content.clone());
+        let redacted_source = source_registry::register(path, &content);
 
         let mut config: Config = toml_edit::de::from_str(&content).map_err(|e| {
             // Try to create a source-aware error with span highlighting
@@ -766,7 +766,7 @@ impl Config {
                     message: e.message().to_string(),
                     src: Arc::new(NamedSource::new(
                         path.display().to_string(),
-                        Arc::new(content),
+                        redacted_source,
                     )),
                     span: SourceSpan::new(span.start.into(), span.end - span.start),
                 }

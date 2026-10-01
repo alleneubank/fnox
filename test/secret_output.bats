@@ -1,0 +1,81 @@
+#!/usr/bin/env bats
+
+# Secret values reach stdout only when a command was asked to print them.
+# Diagnostics on stderr must stay value-free.
+
+bats_require_minimum_version 1.5.0
+
+setup() {
+	load 'test_helper/common_setup'
+	_common_setup
+	export XDG_RUNTIME_DIR="$TEST_TEMP_DIR/runtime"
+	mkdir -p "$XDG_RUNTIME_DIR" "$TEST_TEMP_DIR/bin"
+	export PATH="$TEST_TEMP_DIR/bin:$PATH"
+}
+
+teardown() {
+	"$FNOX_BIN" daemon stop >/dev/null 2>&1 || true
+	_common_teardown
+}
+
+fake_pass() {
+	cat >"$TEST_TEMP_DIR/bin/pass"
+	chmod +x "$TEST_TEMP_DIR/bin/pass"
+}
+
+@test "get prints the value on stdout and nothing on stderr" {
+	fake_pass <<'EOF'
+#!/bin/sh
+printf 'fake-secret-value\n'
+EOF
+	cat >fnox.toml <<'EOF'
+root = true
+
+[providers.pass]
+type = "password-store"
+
+[secrets]
+TOKEN = { provider = "pass", value = "token" }
+EOF
+
+	run --separate-stderr "$FNOX_BIN" get TOKEN
+	assert_success
+	assert_output "fake-secret-value"
+	assert_equal "$stderr" ""
+}
+
+@test "provider-not-configured error does not echo values from the config file" {
+	cat >fnox.toml <<'EOF'
+root = true
+
+[providers.plain]
+type = "plain"
+
+[secrets]
+NEIGHBOR = { provider = "plain", value = "fake-neighbor-value" } # fake-comment-value
+TOKEN = { provider = "missing", value = "fake-token-value" }
+EOF
+
+	run --separate-stderr "$FNOX_BIN" get TOKEN
+	assert_failure
+	assert_output ""
+	[[ $stderr == *"Provider 'missing' not configured"* ]]
+	[[ $stderr != *"fake-neighbor-value"* ]]
+	[[ $stderr != *"fake-comment-value"* ]]
+	[[ $stderr != *"fake-token-value"* ]]
+}
+
+@test "config parse error does not echo values from the config file" {
+	cat >fnox.toml <<'EOF'
+root = true
+
+[secrets]
+NEIGHBOR = { provider = "plain", value = "fake-neighbor-value" }
+TOKEN = { provider = "plain", value = "fake-token-value" } trailing
+EOF
+
+	run --separate-stderr "$FNOX_BIN" get TOKEN
+	assert_failure
+	[[ $stderr != *"fake-neighbor-value"* ]]
+	[[ $stderr != *"fake-token-value"* ]]
+}
