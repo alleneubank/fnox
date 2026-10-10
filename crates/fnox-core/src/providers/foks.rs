@@ -138,7 +138,11 @@ impl FoksProvider {
         args: &[&str],
         secret_ref: Option<&str>,
     ) -> Result<String> {
-        tracing::debug!("Executing foks kv command with args: {args:?}");
+        tracing::debug!(
+            "Executing foks kv command: {} ({} args; values not logged)",
+            args.first().copied().unwrap_or_default(),
+            args.len()
+        );
 
         let mut cmd = self.new_kv_command();
         cmd.args(args);

@@ -156,7 +156,11 @@ impl ProtonPassProvider {
         args: &[&str],
         secret_ref: Option<&str>,
     ) -> Result<String> {
-        tracing::debug!("Executing pass-cli command with args: {:?}", args);
+        tracing::debug!(
+            "Executing pass-cli command: {} ({} args; values not logged)",
+            args.first().copied().unwrap_or_default(),
+            args.len()
+        );
 
         let mut cmd = Command::new("pass-cli");
         cmd.args(args);

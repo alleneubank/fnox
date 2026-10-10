@@ -50,7 +50,11 @@ impl PasswordStoreProvider {
 
     /// Execute pass CLI command
     async fn execute_pass_command(&self, args: &[&str]) -> Result<String> {
-        tracing::debug!("Executing pass command with args: {args:?}");
+        tracing::debug!(
+            "Executing pass command: {} ({} args; values not logged)",
+            args.first().copied().unwrap_or_default(),
+            args.len()
+        );
 
         let mut cmd = Command::new("pass");
         self.configure_command_env(&mut cmd);

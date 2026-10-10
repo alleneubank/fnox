@@ -83,7 +83,11 @@ impl OnePasswordProvider {
 
     /// Execute op CLI command with proper authentication
     async fn execute_op_command(&self, args: &[&str]) -> Result<String> {
-        tracing::debug!("Executing op command with args: {:?}", args);
+        tracing::debug!(
+            "Executing op command: {} ({} args; values not logged)",
+            args.first().copied().unwrap_or_default(),
+            args.len()
+        );
 
         let mut cmd = Command::new("op");
         if let Some(token) = self.get_token() {

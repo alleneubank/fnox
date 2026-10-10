@@ -148,8 +148,8 @@ impl LeaseBackend for CommandBackend {
                 Ok(dt) => Some(dt.with_timezone(&chrono::Utc)),
                 Err(e) => {
                     tracing::warn!(
-                        "Command backend: could not parse expires_at {:?}: {}; lease treated as non-expiring",
-                        s, e
+                        "Command backend: could not parse expires_at as RFC 3339: {}; lease treated as non-expiring",
+                        e
                     );
                     None
                 }

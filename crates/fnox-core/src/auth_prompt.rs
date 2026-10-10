@@ -38,7 +38,9 @@ pub fn prompt_and_run_auth(
         provider_name, error
     );
 
-    let user_confirmed = Confirm::new(format!("Run `{}` to authenticate?", auth_command))
+    // A configured auth_command can embed credentials, so only its program is shown.
+    let shown_command = command_program(auth_command);
+    let user_confirmed = Confirm::new(format!("Run `{shown_command}` to authenticate?"))
         .affirmative("Yes")
         .negative("No")
         .run()
@@ -49,7 +51,7 @@ pub fn prompt_and_run_auth(
     }
 
     // Run the auth command
-    eprintln!("Running: {}", auth_command);
+    eprintln!("Running: {shown_command}");
 
     let status = run_auth_command(auth_command);
 
@@ -69,6 +71,20 @@ pub fn prompt_and_run_auth(
     }
 }
 
+/// The command's first word, with `…` marking omitted arguments.
+fn command_program(command: &str) -> String {
+    let mut words = command.split_whitespace();
+    let program = words.next().unwrap_or_default();
+    match words.next() {
+        Some(_) => format!("{program} …"),
+        None => program.to_string(),
+    }
+}
+
+// WAIVER(provider output stays off stderr): the auth command's stdout is relayed
+// to stderr. It runs only after the user confirms in a TTY, and device-code
+// logins (aws sso login, az login) print the code the user must enter there.
+// Permanent — dropping it breaks those logins.
 fn run_auth_command(auth_command: &str) -> std::io::Result<std::process::ExitStatus> {
     if cfg!(target_os = "windows") {
         Command::new("cmd")

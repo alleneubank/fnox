@@ -157,8 +157,8 @@ impl LeaseBackend for GcpIamBackend {
                 Ok(dt) => Some(dt.with_timezone(&chrono::Utc)),
                 Err(e) => {
                     tracing::warn!(
-                        "GCP IAM: could not parse expireTime {:?}: {}; lease treated as non-expiring",
-                        s, e
+                        "GCP IAM: could not parse expireTime as RFC 3339: {}; lease treated as non-expiring",
+                        e
                     );
                     None
                 }

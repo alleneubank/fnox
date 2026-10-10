@@ -163,7 +163,11 @@ impl HashiCorpVaultProvider {
         args: &[&str],
         stdin: Option<&str>,
     ) -> Result<String> {
-        tracing::debug!("Executing vault command with args: {:?}", args);
+        tracing::debug!(
+            "Executing vault command: {} ({} args; values not logged)",
+            args.first().copied().unwrap_or_default(),
+            args.len()
+        );
 
         let mut cmd = Command::new("vault");
 

@@ -55,7 +55,11 @@ impl DopplerProvider {
         args: &[&str],
         secret_ref: Option<&str>,
     ) -> Result<String> {
-        tracing::debug!("Executing doppler command with args: {:?}", args);
+        tracing::debug!(
+            "Executing doppler command: {} ({} args; values not logged)",
+            args.first().copied().unwrap_or_default(),
+            args.len()
+        );
 
         let mut cmd = Command::new("doppler");
         cmd.args(args);

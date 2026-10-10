@@ -45,7 +45,11 @@ impl BitwardenSecretsManagerProvider {
     }
 
     async fn execute_bws_command(&self, args: &[&str]) -> Result<String> {
-        tracing::debug!("Executing bws command with args: {:?}", args);
+        tracing::debug!(
+            "Executing bws command: {} ({} args; values not logged)",
+            args.first().copied().unwrap_or_default(),
+            args.len()
+        );
 
         let token = Self::get_access_token()?;
 

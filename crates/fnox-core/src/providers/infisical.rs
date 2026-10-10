@@ -146,7 +146,11 @@ impl InfisicalProvider {
         args: &[&str],
         secret_ref: Option<&str>,
     ) -> Result<String> {
-        tracing::debug!("Executing infisical command with args: {:?}", args);
+        tracing::debug!(
+            "Executing infisical command: {} ({} args; values not logged)",
+            args.first().copied().unwrap_or_default(),
+            args.len()
+        );
 
         let token = self.get_auth_token()?;
 
