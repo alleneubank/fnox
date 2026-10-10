@@ -12,8 +12,20 @@ Remotes are roles: `source_remote` is jdx/fnox, `fork_remote` is this repo.
 
 ## Carried commits
 
-None. `fix(daemon): anchor spawned daemon cwd at filesystem root` was dropped
-after upstream shipped the same fix in jdx/fnox#795 (v1.35.0).
+Secret-output guard (keeps secret values out of fnox diagnostics; not yet
+proposed upstream):
+
+- `fix(config): keep config values out of error source snippets`
+- `fix(daemon): fail single-secret resolution when the provider fails`
+- `feat(check): check named secrets without printing values`
+- `fix(provider): hide relayed provider output in errors unless --verbose`
+- `fix(config): mask values in parse errors for config, import and edit`
+- `fix: keep credentials out of lease warnings, debug logs and auth prompts`
+- `fix: close review bypasses in secret masking and verbose output`
+- `fix: keep secret references out of not-found errors, logs and auth prompts`
+
+`fix(daemon): anchor spawned daemon cwd at filesystem root` was dropped after
+upstream shipped the same fix in jdx/fnox#795 (v1.35.0).
 
 Rebase `main` onto `source_remote/main` when upstream moves; drop a carried
 commit once upstream ships it.
