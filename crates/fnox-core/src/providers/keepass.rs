@@ -1,5 +1,5 @@
 use crate::env;
-use crate::error::{FnoxError, Result};
+use crate::error::{FnoxError, ProviderDetails, Result};
 use crate::providers::ProviderCapability;
 use async_trait::async_trait;
 use keepass::DatabaseKey;
@@ -66,7 +66,10 @@ impl KeePassProvider {
             ))
             .map_err(|e| FnoxError::ProviderAuthFailed {
                 provider: "KeePass".to_string(),
-                details: format!("Could not read database password from terminal: {e}"),
+                details: ProviderDetails::relayed(
+                    "Could not read database password from terminal",
+                    &e,
+                ),
                 hint: "Set FNOX_KEEPASS_PASSWORD or KEEPASS_PASSWORD instead".to_string(),
                 url: "https://fnox.jdx.dev/providers/keepass".to_string(),
             })?;
@@ -76,7 +79,7 @@ impl KeePassProvider {
 
         Err(FnoxError::ProviderAuthFailed {
             provider: "KeePass".to_string(),
-            details: "Database password not set".to_string(),
+            details: ProviderDetails::authored("Database password not set"),
             hint: "Run in a terminal to enter the password, or set FNOX_KEEPASS_PASSWORD or KEEPASS_PASSWORD".to_string(),
             url: "https://fnox.jdx.dev/providers/keepass".to_string(),
         })
@@ -95,7 +98,10 @@ impl KeePassProvider {
             let mut keyfile =
                 File::open(keyfile_path).map_err(|e| FnoxError::ProviderApiError {
                     provider: "KeePass".to_string(),
-                    details: format!("Failed to open keyfile '{}': {}", keyfile_path.display(), e),
+                    details: ProviderDetails::relayed(
+                        format!("Failed to open keyfile '{}'", keyfile_path.display()),
+                        &e,
+                    ),
                     hint: "Check that the keyfile exists and is readable".to_string(),
                     url: "https://fnox.jdx.dev/providers/keepass".to_string(),
                 })?;
@@ -103,7 +109,7 @@ impl KeePassProvider {
                 .with_keyfile(&mut keyfile)
                 .map_err(|e| FnoxError::ProviderApiError {
                     provider: "KeePass".to_string(),
-                    details: format!("Failed to read keyfile: {}", e),
+                    details: ProviderDetails::relayed("Failed to read keyfile", &e),
                     hint: "Check that the keyfile is valid".to_string(),
                     url: "https://fnox.jdx.dev/providers/keepass".to_string(),
                 })?;
@@ -116,10 +122,9 @@ impl KeePassProvider {
     fn open_database(&self) -> Result<Database> {
         let file = File::open(&self.database_path).map_err(|e| FnoxError::ProviderApiError {
             provider: "KeePass".to_string(),
-            details: format!(
-                "Failed to open database '{}': {}",
-                self.database_path.display(),
-                e
+            details: ProviderDetails::relayed(
+                format!("Failed to open database '{}'", self.database_path.display()),
+                &e,
             ),
             hint: "Check that the database file exists and is readable".to_string(),
             url: "https://fnox.jdx.dev/providers/keepass".to_string(),
@@ -129,7 +134,7 @@ impl KeePassProvider {
 
         Database::open(&mut reader, key).map_err(|e| FnoxError::ProviderAuthFailed {
             provider: "KeePass".to_string(),
-            details: format!("Failed to decrypt database: {}", e),
+            details: ProviderDetails::relayed("Failed to decrypt database", &e),
             hint: "Check that the password and/or keyfile are correct".to_string(),
             url: "https://fnox.jdx.dev/providers/keepass".to_string(),
         })
@@ -145,10 +150,9 @@ impl KeePassProvider {
         if !parent_dir.exists() {
             std::fs::create_dir_all(parent_dir).map_err(|e| FnoxError::ProviderApiError {
                 provider: "KeePass".to_string(),
-                details: format!(
-                    "Failed to create directory '{}': {}",
-                    parent_dir.display(),
-                    e
+                details: ProviderDetails::relayed(
+                    format!("Failed to create directory '{}'", parent_dir.display()),
+                    &e,
                 ),
                 hint: "Check directory permissions".to_string(),
                 url: "https://fnox.jdx.dev/providers/keepass".to_string(),
@@ -160,10 +164,12 @@ impl KeePassProvider {
         let temp_file =
             NamedTempFile::new_in(parent_dir).map_err(|e| FnoxError::ProviderApiError {
                 provider: "KeePass".to_string(),
-                details: format!(
-                    "Failed to create temporary file in '{}': {}",
-                    parent_dir.display(),
-                    e
+                details: ProviderDetails::relayed(
+                    format!(
+                        "Failed to create temporary file in '{}'",
+                        parent_dir.display()
+                    ),
+                    &e,
                 ),
                 hint: "Check directory permissions".to_string(),
                 url: "https://fnox.jdx.dev/providers/keepass".to_string(),
@@ -176,7 +182,7 @@ impl KeePassProvider {
         db.save(&mut writer, key)
             .map_err(|e| FnoxError::ProviderApiError {
                 provider: "KeePass".to_string(),
-                details: format!("Failed to save database: {}", e),
+                details: ProviderDetails::relayed("Failed to save database", &e),
                 hint: "Check that you have write permissions".to_string(),
                 url: "https://fnox.jdx.dev/providers/keepass".to_string(),
             })?;
@@ -184,7 +190,7 @@ impl KeePassProvider {
         // Flush buffer to file
         writer.flush().map_err(|e| FnoxError::ProviderApiError {
             provider: "KeePass".to_string(),
-            details: format!("Failed to flush database: {}", e),
+            details: ProviderDetails::relayed("Failed to flush database", &e),
             hint: "Check disk space and permissions".to_string(),
             url: "https://fnox.jdx.dev/providers/keepass".to_string(),
         })?;
@@ -196,7 +202,7 @@ impl KeePassProvider {
             .sync_all()
             .map_err(|e| FnoxError::ProviderApiError {
                 provider: "KeePass".to_string(),
-                details: format!("Failed to sync database to disk: {}", e),
+                details: ProviderDetails::relayed("Failed to sync database to disk", &e),
                 hint: "Check disk space and permissions".to_string(),
                 url: "https://fnox.jdx.dev/providers/keepass".to_string(),
             })?;
@@ -207,7 +213,7 @@ impl KeePassProvider {
             .into_inner()
             .map_err(|e| FnoxError::ProviderApiError {
                 provider: "KeePass".to_string(),
-                details: format!("Failed to finalize temp file: {}", e),
+                details: ProviderDetails::relayed("Failed to finalize temp file", &e),
                 hint: "Check disk space and permissions".to_string(),
                 url: "https://fnox.jdx.dev/providers/keepass".to_string(),
             })?;
@@ -216,10 +222,12 @@ impl KeePassProvider {
             .persist(&self.database_path)
             .map_err(|e| FnoxError::ProviderApiError {
                 provider: "KeePass".to_string(),
-                details: format!(
-                    "Failed to persist database to '{}': {}",
-                    self.database_path.display(),
-                    e
+                details: ProviderDetails::relayed(
+                    format!(
+                        "Failed to persist database to '{}'",
+                        self.database_path.display()
+                    ),
+                    &e,
                 ),
                 hint: "Check file permissions".to_string(),
                 url: "https://fnox.jdx.dev/providers/keepass".to_string(),
@@ -334,7 +342,7 @@ impl KeePassProvider {
         if path.is_empty() {
             return Err(FnoxError::ProviderInvalidResponse {
                 provider: "KeePass".to_string(),
-                details: "Empty path for entry".to_string(),
+                details: ProviderDetails::authored("Empty path for entry"),
                 hint: "Provide an entry name or path".to_string(),
                 url: "https://fnox.jdx.dev/providers/keepass".to_string(),
             });
@@ -344,7 +352,7 @@ impl KeePassProvider {
         if field == "Title" {
             return Err(FnoxError::ProviderInvalidResponse {
                 provider: "KeePass".to_string(),
-                details: "Cannot write to 'Title' field".to_string(),
+                details: ProviderDetails::authored("Cannot write to 'Title' field"),
                 hint: "The 'Title' field is used for entry identification. Use a different field name.".to_string(),
                 url: "https://fnox.jdx.dev/providers/keepass".to_string(),
             });
@@ -417,11 +425,11 @@ impl crate::providers::Provider for KeePassProvider {
             .map(|s| s.to_string())
             .ok_or_else(|| FnoxError::ProviderInvalidResponse {
                 provider: "KeePass".to_string(),
-                details: format!(
+                details: ProviderDetails::authored(format!(
                     "Field '{}' not found in entry '{}'",
                     field,
                     entry_path.join("/")
-                ),
+                )),
                 hint: "Available fields: password, username, url, notes, title".to_string(),
                 url: "https://fnox.jdx.dev/providers/keepass".to_string(),
             })
@@ -480,7 +488,10 @@ impl crate::providers::Provider for KeePassProvider {
         {
             return Err(FnoxError::ProviderApiError {
                 provider: "KeePass".to_string(),
-                details: format!("Keyfile '{}' does not exist", keyfile_path.display()),
+                details: ProviderDetails::authored(format!(
+                    "Keyfile '{}' does not exist",
+                    keyfile_path.display()
+                )),
                 hint: "Check the keyfile path in your provider configuration".to_string(),
                 url: "https://fnox.jdx.dev/providers/keepass".to_string(),
             });

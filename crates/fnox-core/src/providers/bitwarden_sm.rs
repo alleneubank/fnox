@@ -1,5 +1,5 @@
 use crate::env;
-use crate::error::{FnoxError, Result};
+use crate::error::{FnoxError, ProviderDetails, Result};
 use async_trait::async_trait;
 use std::collections::HashMap;
 use tokio::process::Command;
@@ -29,7 +29,7 @@ impl BitwardenSecretsManagerProvider {
             .or_else(|| env::var("BWS_PROJECT_ID").ok())
             .ok_or_else(|| FnoxError::ProviderCliFailed {
                 provider: "Bitwarden Secrets Manager".to_string(),
-                details: "Project ID not configured".to_string(),
+                details: ProviderDetails::authored("Project ID not configured"),
                 hint: "Set project_id in provider config or BWS_PROJECT_ID env var".to_string(),
                 url: URL.to_string(),
             })
@@ -38,7 +38,7 @@ impl BitwardenSecretsManagerProvider {
     fn get_access_token() -> Result<String> {
         bws_access_token().ok_or_else(|| FnoxError::ProviderAuthFailed {
             provider: "Bitwarden Secrets Manager".to_string(),
-            details: "Access token not found".to_string(),
+            details: ProviderDetails::authored("Access token not found"),
             hint: "Set BWS_ACCESS_TOKEN or FNOX_BWS_ACCESS_TOKEN".to_string(),
             url: URL.to_string(),
         })
@@ -70,7 +70,7 @@ impl BitwardenSecretsManagerProvider {
             } else {
                 FnoxError::ProviderCliFailed {
                     provider: "Bitwarden Secrets Manager".to_string(),
-                    details: e.to_string(),
+                    details: ProviderDetails::output(&e),
                     hint: "Check that bws is installed and accessible".to_string(),
                     url: URL.to_string(),
                 }
@@ -88,7 +88,7 @@ impl BitwardenSecretsManagerProvider {
             {
                 return Err(FnoxError::ProviderAuthFailed {
                     provider: "Bitwarden Secrets Manager".to_string(),
-                    details: stderr_str.to_string(),
+                    details: ProviderDetails::output(stderr_str),
                     hint: "Check your BWS_ACCESS_TOKEN is valid".to_string(),
                     url: URL.to_string(),
                 });
@@ -96,7 +96,7 @@ impl BitwardenSecretsManagerProvider {
 
             return Err(FnoxError::ProviderCliFailed {
                 provider: "Bitwarden Secrets Manager".to_string(),
-                details: stderr_str.to_string(),
+                details: ProviderDetails::output(stderr_str),
                 hint: "Check your Bitwarden Secrets Manager configuration".to_string(),
                 url: URL.to_string(),
             });
@@ -105,7 +105,7 @@ impl BitwardenSecretsManagerProvider {
         let stdout =
             String::from_utf8(output.stdout).map_err(|e| FnoxError::ProviderInvalidResponse {
                 provider: "Bitwarden Secrets Manager".to_string(),
-                details: format!("Invalid UTF-8 in command output: {}", e),
+                details: ProviderDetails::relayed("Invalid UTF-8 in command output", &e),
                 hint: "The secret value contains invalid UTF-8 characters".to_string(),
                 url: URL.to_string(),
             })?;
@@ -136,7 +136,7 @@ impl BitwardenSecretsManagerProvider {
 
         serde_json::from_str(&json_output).map_err(|e| FnoxError::ProviderInvalidResponse {
             provider: "Bitwarden Secrets Manager".to_string(),
-            details: format!("Failed to parse JSON: {}", e),
+            details: ProviderDetails::relayed("Failed to parse JSON", &e),
             hint: "Unexpected response from bws CLI".to_string(),
             url: URL.to_string(),
         })
@@ -151,7 +151,10 @@ impl BitwardenSecretsManagerProvider {
         if !matches!(field_name, "value" | "key" | "note") {
             return Err(FnoxError::ProviderInvalidResponse {
                 provider: "Bitwarden Secrets Manager".to_string(),
-                details: format!("Unknown field '{}' in secret reference", field_name),
+                details: ProviderDetails::authored(format!(
+                    "Unknown field '{}' in secret reference",
+                    field_name
+                )),
                 hint: "Supported fields: value, key, note".to_string(),
                 url: URL.to_string(),
             });
@@ -164,7 +167,10 @@ impl BitwardenSecretsManagerProvider {
             .map(|s| s.to_string())
             .ok_or_else(|| FnoxError::ProviderInvalidResponse {
                 provider: "Bitwarden Secrets Manager".to_string(),
-                details: format!("Field '{}' not found in secret", field_name),
+                details: ProviderDetails::authored(format!(
+                    "Field '{}' not found in secret",
+                    field_name
+                )),
                 hint: "Supported fields: value, key, note".to_string(),
                 url: URL.to_string(),
             })
@@ -208,7 +214,7 @@ impl crate::providers::Provider for BitwardenSecretsManagerProvider {
                             key.clone(),
                             Err(FnoxError::ProviderCliFailed {
                                 provider: "Bitwarden Secrets Manager".to_string(),
-                                details: e.to_string(),
+                                details: ProviderDetails::output(&e),
                                 hint: "Check your Bitwarden Secrets Manager configuration"
                                     .to_string(),
                                 url: URL.to_string(),
@@ -238,7 +244,7 @@ impl crate::providers::Provider for BitwardenSecretsManagerProvider {
                 .as_str()
                 .ok_or_else(|| FnoxError::ProviderInvalidResponse {
                     provider: "Bitwarden Secrets Manager".to_string(),
-                    details: "Secret missing 'id' field".to_string(),
+                    details: ProviderDetails::authored("Secret missing 'id' field"),
                     hint: "Unexpected response from bws CLI".to_string(),
                     url: URL.to_string(),
                 })?;

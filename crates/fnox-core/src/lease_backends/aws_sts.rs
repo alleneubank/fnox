@@ -1,4 +1,4 @@
-use crate::error::{FnoxError, Result};
+use crate::error::{FnoxError, ProviderDetails, Result};
 use crate::lease_backends::{Lease, LeaseBackend};
 use async_trait::async_trait;
 use aws_config::BehaviorVersion;
@@ -113,14 +113,14 @@ impl LeaseBackend for AwsStsBackend {
                 if err_str.contains("AccessDenied") || err_str.contains("not authorized") {
                     FnoxError::ProviderAuthFailed {
                         provider: "AWS STS".to_string(),
-                        details: err_str,
+                        details: ProviderDetails::output(&err_str),
                         hint: format!("Check IAM permissions for sts:AssumeRole on '{}'", role_arn),
                         url: URL.to_string(),
                     }
                 } else {
                     FnoxError::ProviderApiError {
                         provider: "AWS STS".to_string(),
-                        details: err_str,
+                        details: ProviderDetails::output(&err_str),
                         hint: "Check AWS STS configuration and role ARN".to_string(),
                         url: URL.to_string(),
                     }
@@ -132,7 +132,7 @@ impl LeaseBackend for AwsStsBackend {
                 .credentials()
                 .ok_or_else(|| FnoxError::ProviderInvalidResponse {
                     provider: "AWS STS".to_string(),
-                    details: "AssumeRole response missing credentials".to_string(),
+                    details: ProviderDetails::authored("AssumeRole response missing credentials"),
                     hint: "Unexpected AWS STS response".to_string(),
                     url: URL.to_string(),
                 })?;

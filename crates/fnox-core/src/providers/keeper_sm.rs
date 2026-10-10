@@ -1,5 +1,5 @@
 use crate::env;
-use crate::error::{FnoxError, Result};
+use crate::error::{FnoxError, ProviderDetails, Result};
 use async_trait::async_trait;
 use keeper_secrets_manager_core::{
     ClientOptions, FileKeyValueStorage, InMemoryKeyValueStorage, KSMRError, SecretsManager,
@@ -47,7 +47,7 @@ impl KeeperSecretsManagerProvider {
         {
             return Err(FnoxError::ProviderAuthFailed {
                 provider: PROVIDER_NAME.to_string(),
-                details: format!("Configuration file '{}' does not exist", path),
+                details: ProviderDetails::authored(format!("Configuration file '{}' does not exist", path)),
                 hint: "Download a KSM configuration file, set KSM_CONFIG, or provide a one-time KSM_TOKEN for bootstrap"
                     .to_string(),
                 url: PROVIDER_URL.to_string(),
@@ -60,7 +60,7 @@ impl KeeperSecretsManagerProvider {
             .join()
             .map_err(|_| FnoxError::ProviderApiError {
                 provider: PROVIDER_NAME.to_string(),
-                details: "Keeper SDK initialization thread panicked".to_string(),
+                details: ProviderDetails::authored("Keeper SDK initialization thread panicked"),
                 hint: "Check the Keeper configuration and retry".to_string(),
                 url: PROVIDER_URL.to_string(),
             })??;
@@ -80,7 +80,7 @@ impl KeeperSecretsManagerProvider {
         tokio::task::spawn_blocking(move || {
             let mut manager = manager.lock().map_err(|_| FnoxError::ProviderApiError {
                 provider: PROVIDER_NAME.to_string(),
-                details: "Keeper SDK client lock was poisoned".to_string(),
+                details: ProviderDetails::authored("Keeper SDK client lock was poisoned"),
                 hint: "Retry the command".to_string(),
                 url: PROVIDER_URL.to_string(),
             })?;
@@ -89,7 +89,7 @@ impl KeeperSecretsManagerProvider {
         .await
         .map_err(|e| FnoxError::ProviderApiError {
             provider: PROVIDER_NAME.to_string(),
-            details: format!("Keeper SDK task failed: {e}"),
+            details: ProviderDetails::relayed("Keeper SDK task failed", &e),
             hint: "Retry the command".to_string(),
             url: PROVIDER_URL.to_string(),
         })?
@@ -106,7 +106,7 @@ impl KeeperSecretsManagerProvider {
                 .lock()
                 .map_err(|_| FnoxError::ProviderApiError {
                     provider: PROVIDER_NAME.to_string(),
-                    details: "Keeper SDK client lock was poisoned".to_string(),
+                    details: ProviderDetails::authored("Keeper SDK client lock was poisoned"),
                     hint: "Retry the command".to_string(),
                     url: PROVIDER_URL.to_string(),
                 })?
@@ -116,7 +116,7 @@ impl KeeperSecretsManagerProvider {
         .await
         .map_err(|e| FnoxError::ProviderApiError {
             provider: PROVIDER_NAME.to_string(),
-            details: format!("Keeper SDK task failed: {e}"),
+            details: ProviderDetails::relayed("Keeper SDK task failed", &e),
             hint: "Retry the command".to_string(),
             url: PROVIDER_URL.to_string(),
         })?
@@ -222,7 +222,7 @@ fn map_ksm_error(error: KSMRError, secret: Option<&str>) -> FnoxError {
         | KSMRError::SecretManagerCreationError(_)
         | KSMRError::KeyNotFoundError(_) => FnoxError::ProviderAuthFailed {
             provider: PROVIDER_NAME.to_string(),
-            details,
+            details: ProviderDetails::output(&details),
             hint: "Check the Keeper client configuration or one-time token".to_string(),
             url: PROVIDER_URL.to_string(),
         },
@@ -250,13 +250,13 @@ fn map_ksm_error(error: KSMRError, secret: Option<&str>) -> FnoxError {
         }
         KSMRError::NotationError(_) => FnoxError::ProviderInvalidResponse {
             provider: PROVIDER_NAME.to_string(),
-            details,
+            details: ProviderDetails::output(&details),
             hint: "Use Keeper notation such as RECORD_UID/field/password".to_string(),
             url: PROVIDER_URL.to_string(),
         },
         _ => FnoxError::ProviderApiError {
             provider: PROVIDER_NAME.to_string(),
-            details,
+            details: ProviderDetails::output(&details),
             hint: "Check network access and the Keeper Secrets Manager configuration".to_string(),
             url: PROVIDER_URL.to_string(),
         },
@@ -373,7 +373,7 @@ mod tests {
     fn batch_failures_preserve_authentication_errors() {
         let error = FnoxError::ProviderAuthFailed {
             provider: PROVIDER_NAME.to_string(),
-            details: "invalid one-time token".to_string(),
+            details: ProviderDetails::authored("invalid one-time token"),
             hint: "replace the token".to_string(),
             url: PROVIDER_URL.to_string(),
         };

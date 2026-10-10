@@ -1,4 +1,4 @@
-use crate::error::{FnoxError, Result};
+use crate::error::{FnoxError, ProviderDetails, Result};
 use async_trait::async_trait;
 use aws_sdk_kms::Client;
 use aws_sdk_kms::primitives::Blob;
@@ -27,7 +27,7 @@ where
             if err_str.contains("AccessDenied") || err_str.contains("UnauthorizedAccess") {
                 FnoxError::ProviderAuthFailed {
                     provider: "AWS KMS".to_string(),
-                    details: err_str,
+                    details: ProviderDetails::output(&err_str),
                     hint: format!("Check IAM permissions for kms:{}", operation),
                     url: URL.to_string(),
                 }
@@ -41,7 +41,7 @@ where
             } else {
                 FnoxError::ProviderApiError {
                     provider: "AWS KMS".to_string(),
-                    details: err_str,
+                    details: ProviderDetails::output(&err_str),
                     hint: "Check AWS KMS configuration".to_string(),
                     url: URL.to_string(),
                 }
@@ -49,7 +49,7 @@ where
         }
         SdkError::TimeoutError(_) => FnoxError::ProviderApiError {
             provider: "AWS KMS".to_string(),
-            details: "Request timed out".to_string(),
+            details: ProviderDetails::authored("Request timed out"),
             hint: "Check network connectivity and AWS region endpoint".to_string(),
             url: URL.to_string(),
         },
@@ -87,14 +87,14 @@ where
                 if full_error.contains("credentials") {
                     FnoxError::ProviderAuthFailed {
                         provider: "AWS KMS".to_string(),
-                        details: full_error,
+                        details: ProviderDetails::output(&full_error),
                         hint: hint.to_string(),
                         url: URL.to_string(),
                     }
                 } else {
                     FnoxError::ProviderApiError {
                         provider: "AWS KMS".to_string(),
-                        details: full_error,
+                        details: ProviderDetails::output(&full_error),
                         hint: hint.to_string(),
                         url: URL.to_string(),
                     }
@@ -102,7 +102,7 @@ where
             } else {
                 FnoxError::ProviderApiError {
                     provider: "AWS KMS".to_string(),
-                    details: format!("{:?}", dispatch_err),
+                    details: ProviderDetails::output(format!("{dispatch_err:?}")),
                     hint: "Check network connectivity".to_string(),
                     url: URL.to_string(),
                 }
@@ -110,7 +110,7 @@ where
         }
         _ => FnoxError::ProviderApiError {
             provider: "AWS KMS".to_string(),
-            details: err.to_string(),
+            details: ProviderDetails::output(err),
             hint: "Check AWS configuration".to_string(),
             url: URL.to_string(),
         },
@@ -171,7 +171,7 @@ impl AwsKmsProvider {
         )
         .map_err(|e| FnoxError::ProviderInvalidResponse {
             provider: "AWS KMS".to_string(),
-            details: format!("Failed to decode base64 ciphertext: {}", e),
+            details: ProviderDetails::relayed("Failed to decode base64 ciphertext", &e),
             hint: "The encrypted value appears to be corrupted".to_string(),
             url: URL.to_string(),
         })?;
@@ -189,7 +189,7 @@ impl AwsKmsProvider {
                 .plaintext()
                 .ok_or_else(|| FnoxError::ProviderInvalidResponse {
                     provider: "AWS KMS".to_string(),
-                    details: "Decrypt returned no plaintext".to_string(),
+                    details: ProviderDetails::authored("Decrypt returned no plaintext"),
                     hint: "The KMS key may not be able to decrypt this ciphertext".to_string(),
                     url: URL.to_string(),
                 })?;
@@ -198,7 +198,7 @@ impl AwsKmsProvider {
         String::from_utf8(plaintext_blob.as_ref().to_vec()).map_err(|e| {
             FnoxError::ProviderInvalidResponse {
                 provider: "AWS KMS".to_string(),
-                details: format!("Decrypted value is not valid UTF-8: {}", e),
+                details: ProviderDetails::relayed("Decrypted value is not valid UTF-8", &e),
                 hint: "The decrypted value contains invalid UTF-8 characters".to_string(),
                 url: URL.to_string(),
             }
@@ -233,7 +233,7 @@ impl crate::providers::Provider for AwsKmsProvider {
                 .ciphertext_blob()
                 .ok_or_else(|| FnoxError::ProviderInvalidResponse {
                     provider: "AWS KMS".to_string(),
-                    details: "Encrypt returned no ciphertext".to_string(),
+                    details: ProviderDetails::authored("Encrypt returned no ciphertext"),
                     hint: "This is an unexpected error".to_string(),
                     url: URL.to_string(),
                 })?;

@@ -1,4 +1,4 @@
-use crate::error::{FnoxError, Result};
+use crate::error::{FnoxError, ProviderDetails, Result};
 use async_trait::async_trait;
 use azure_identity::DeveloperToolsCredential;
 use azure_security_keyvault_keys::{
@@ -33,14 +33,14 @@ impl AzureKeyVaultProvider {
         let credential =
             DeveloperToolsCredential::new(None).map_err(|e| FnoxError::ProviderAuthFailed {
                 provider: "Azure Key Vault".to_string(),
-                details: e.to_string(),
+                details: ProviderDetails::output(&e),
                 hint: "Run 'az login' to authenticate with Azure".to_string(),
                 url: URL.to_string(),
             })?;
 
         KeyClient::new(&self.vault_url, credential, None).map_err(|e| FnoxError::ProviderApiError {
             provider: "Azure Key Vault".to_string(),
-            details: e.to_string(),
+            details: ProviderDetails::output(&e),
             hint: "Check your Azure Key Vault URL".to_string(),
             url: URL.to_string(),
         })
@@ -57,7 +57,7 @@ impl AzureKeyVaultProvider {
         )
         .map_err(|e| FnoxError::ProviderInvalidResponse {
             provider: "Azure Key Vault".to_string(),
-            details: format!("Failed to decode base64 ciphertext: {}", e),
+            details: ProviderDetails::relayed("Failed to decode base64 ciphertext", &e),
             hint: "The encrypted value appears to be corrupted".to_string(),
             url: URL.to_string(),
         })?;
@@ -78,7 +78,10 @@ impl AzureKeyVaultProvider {
                     .try_into()
                     .map_err(|e| FnoxError::ProviderInvalidResponse {
                         provider: "Azure Key Vault".to_string(),
-                        details: format!("Failed to create decrypt parameters: {}", e),
+                        details: ProviderDetails::relayed(
+                            "Failed to create decrypt parameters",
+                            &e,
+                        ),
                         hint: "This is an unexpected error".to_string(),
                         url: URL.to_string(),
                     })?,
@@ -97,14 +100,14 @@ impl AzureKeyVaultProvider {
                 } else if err_str.contains("Forbidden") || err_str.contains("Unauthorized") {
                     FnoxError::ProviderAuthFailed {
                         provider: "Azure Key Vault".to_string(),
-                        details: err_str,
+                        details: ProviderDetails::output(&err_str),
                         hint: "Check your Azure Key Vault access policies".to_string(),
                         url: URL.to_string(),
                     }
                 } else {
                     FnoxError::ProviderApiError {
                         provider: "Azure Key Vault".to_string(),
-                        details: err_str,
+                        details: ProviderDetails::output(&err_str),
                         hint: "Check your Azure Key Vault configuration".to_string(),
                         url: URL.to_string(),
                     }
@@ -115,7 +118,7 @@ impl AzureKeyVaultProvider {
             .into_model()
             .map_err(|e| FnoxError::ProviderInvalidResponse {
                 provider: "Azure Key Vault".to_string(),
-                details: format!("Failed to parse decrypt response: {}", e),
+                details: ProviderDetails::relayed("Failed to parse decrypt response", &e),
                 hint: "This is an unexpected error".to_string(),
                 url: URL.to_string(),
             })?;
@@ -124,7 +127,7 @@ impl AzureKeyVaultProvider {
             .result
             .ok_or_else(|| FnoxError::ProviderInvalidResponse {
                 provider: "Azure Key Vault".to_string(),
-                details: "Decrypt result has no value".to_string(),
+                details: ProviderDetails::authored("Decrypt result has no value"),
                 hint: "The decryption returned no plaintext".to_string(),
                 url: URL.to_string(),
             })?;
@@ -132,7 +135,7 @@ impl AzureKeyVaultProvider {
         // Convert bytes to string
         String::from_utf8(plaintext_bytes).map_err(|e| FnoxError::ProviderInvalidResponse {
             provider: "Azure Key Vault".to_string(),
-            details: format!("Decrypted value is not valid UTF-8: {}", e),
+            details: ProviderDetails::relayed("Decrypted value is not valid UTF-8", &e),
             hint: "The decrypted value contains invalid UTF-8 characters".to_string(),
             url: URL.to_string(),
         })
@@ -168,7 +171,10 @@ impl crate::providers::Provider for AzureKeyVaultProvider {
                     .try_into()
                     .map_err(|e| FnoxError::ProviderInvalidResponse {
                         provider: "Azure Key Vault".to_string(),
-                        details: format!("Failed to create encrypt parameters: {}", e),
+                        details: ProviderDetails::relayed(
+                            "Failed to create encrypt parameters",
+                            &e,
+                        ),
                         hint: "This is an unexpected error".to_string(),
                         url: URL.to_string(),
                     })?,
@@ -180,14 +186,14 @@ impl crate::providers::Provider for AzureKeyVaultProvider {
                 if err_str.contains("Forbidden") || err_str.contains("Unauthorized") {
                     FnoxError::ProviderAuthFailed {
                         provider: "Azure Key Vault".to_string(),
-                        details: err_str,
+                        details: ProviderDetails::output(&err_str),
                         hint: "Check your Azure Key Vault access policies".to_string(),
                         url: URL.to_string(),
                     }
                 } else {
                     FnoxError::ProviderApiError {
                         provider: "Azure Key Vault".to_string(),
-                        details: err_str,
+                        details: ProviderDetails::output(&err_str),
                         hint: "Check your Azure Key Vault configuration".to_string(),
                         url: URL.to_string(),
                     }
@@ -198,7 +204,7 @@ impl crate::providers::Provider for AzureKeyVaultProvider {
             .into_model()
             .map_err(|e| FnoxError::ProviderInvalidResponse {
                 provider: "Azure Key Vault".to_string(),
-                details: format!("Failed to parse encrypt response: {}", e),
+                details: ProviderDetails::relayed("Failed to parse encrypt response", &e),
                 hint: "This is an unexpected error".to_string(),
                 url: URL.to_string(),
             })?;
@@ -207,7 +213,7 @@ impl crate::providers::Provider for AzureKeyVaultProvider {
             .result
             .ok_or_else(|| FnoxError::ProviderInvalidResponse {
                 provider: "Azure Key Vault".to_string(),
-                details: "Encrypt result has no value".to_string(),
+                details: ProviderDetails::authored("Encrypt result has no value"),
                 hint: "The encryption returned no ciphertext".to_string(),
                 url: URL.to_string(),
             })?;
@@ -235,14 +241,17 @@ impl crate::providers::Provider for AzureKeyVaultProvider {
             } else if err_str.contains("Forbidden") || err_str.contains("Unauthorized") {
                 FnoxError::ProviderAuthFailed {
                     provider: "Azure Key Vault".to_string(),
-                    details: err_str,
+                    details: ProviderDetails::output(&err_str),
                     hint: "Check your Azure Key Vault access policies".to_string(),
                     url: URL.to_string(),
                 }
             } else {
                 FnoxError::ProviderApiError {
                     provider: "Azure Key Vault".to_string(),
-                    details: format!("Failed to access key '{}': {}", self.key_name, err_str),
+                    details: ProviderDetails::relayed(
+                        format!("Failed to access key '{}'", self.key_name),
+                        &err_str,
+                    ),
                     hint: "Check your Azure Key Vault configuration".to_string(),
                     url: URL.to_string(),
                 }

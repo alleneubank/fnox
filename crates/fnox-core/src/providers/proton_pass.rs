@@ -1,5 +1,5 @@
 use crate::env;
-use crate::error::{FnoxError, Result};
+use crate::error::{FnoxError, ProviderDetails, Result};
 use async_trait::async_trait;
 use tokio::process::Command;
 
@@ -95,7 +95,7 @@ impl ProtonPassProvider {
         if value.is_empty() {
             return Err(FnoxError::ProviderInvalidResponse {
                 provider: "Proton Pass".to_string(),
-                details: "Secret reference cannot be empty".to_string(),
+                details: ProviderDetails::authored("Secret reference cannot be empty"),
                 hint: "Provide an item name, item/field, vault/item/field, or pass:// reference"
                     .to_string(),
                 url: "https://fnox.jdx.dev/providers/proton-pass".to_string(),
@@ -108,7 +108,7 @@ impl ProtonPassProvider {
             if parts.len() < 3 || parts.iter().any(|p| p.is_empty()) {
                 return Err(FnoxError::ProviderInvalidResponse {
                     provider: "Proton Pass".to_string(),
-                    details: format!("Invalid pass:// reference format: '{}'", value),
+                    details: ProviderDetails::relayed("Invalid pass:// reference format", value),
                     hint: "Expected format: pass://vault/item/field".to_string(),
                     url: "https://fnox.jdx.dev/providers/proton-pass".to_string(),
                 });
@@ -123,7 +123,7 @@ impl ProtonPassProvider {
                 let vault = self.vault.as_ref().ok_or_else(|| {
                     FnoxError::ProviderInvalidResponse {
                         provider: "Proton Pass".to_string(),
-                        details: format!("Unknown vault for secret: '{}'", value),
+                        details: ProviderDetails::relayed("Unknown vault for secret", value),
                         hint: "Specify a vault in the provider config or use a full 'pass://' reference".to_string(),
                         url: "https://fnox.jdx.dev/providers/proton-pass".to_string(),
                     }
@@ -140,7 +140,7 @@ impl ProtonPassProvider {
             // More than three parts: invalid
             _ => Err(FnoxError::ProviderInvalidResponse {
                 provider: "Proton Pass".to_string(),
-                details: format!("Invalid secret reference format: '{}'", value),
+                details: ProviderDetails::relayed("Invalid secret reference format", value),
                 hint: "Expected 'item', 'item/field', 'vault/item/field', or 'pass://vault/item/field'".to_string(),
                 url: "https://fnox.jdx.dev/providers/proton-pass".to_string(),
             }),
@@ -178,7 +178,7 @@ impl ProtonPassProvider {
             } else {
                 FnoxError::ProviderCliFailed {
                     provider: "Proton Pass".to_string(),
-                    details: e.to_string(),
+                    details: ProviderDetails::output(&e),
                     hint: "Check that the Proton Pass CLI (pass-cli) is installed and accessible"
                         .to_string(),
                     url: "https://fnox.jdx.dev/providers/proton-pass".to_string(),
@@ -194,7 +194,7 @@ impl ProtonPassProvider {
         let stdout =
             String::from_utf8(output.stdout).map_err(|e| FnoxError::ProviderInvalidResponse {
                 provider: "Proton Pass".to_string(),
-                details: format!("Invalid UTF-8 in command output: {}", e),
+                details: ProviderDetails::relayed("Invalid UTF-8 in command output", &e),
                 hint: "The secret value contains invalid UTF-8 characters".to_string(),
                 url: "https://fnox.jdx.dev/providers/proton-pass".to_string(),
             })?;
@@ -231,7 +231,7 @@ fn classify_cli_error(stderr: &str, secret_ref: Option<&str>) -> FnoxError {
         // require the distinct unlock command.
         return FnoxError::ProviderCliFailed {
             provider: "Proton Pass".to_string(),
-            details: stderr.trim().to_string(),
+            details: ProviderDetails::output(stderr.trim()),
             hint: "Run 'pass-cli session unlock' to unlock your Proton Pass session".to_string(),
             url: "https://fnox.jdx.dev/providers/proton-pass".to_string(),
         };
@@ -243,7 +243,7 @@ fn classify_cli_error(stderr: &str, secret_ref: Option<&str>) -> FnoxError {
     {
         return FnoxError::ProviderAuthFailed {
             provider: "Proton Pass".to_string(),
-            details: stderr.trim().to_string(),
+            details: ProviderDetails::output(stderr.trim()),
             hint: "Set PROTON_PASS_AGENT_REASON, FNOX_PROTON_PASS_AGENT_REASON, or providers.<name>.agent_reason for audited agent access".to_string(),
             url: "https://fnox.jdx.dev/providers/proton-pass".to_string(),
         };
@@ -255,7 +255,7 @@ fn classify_cli_error(stderr: &str, secret_ref: Option<&str>) -> FnoxError {
     {
         return FnoxError::ProviderAuthFailed {
             provider: "Proton Pass".to_string(),
-            details: stderr.trim().to_string(),
+            details: ProviderDetails::output(stderr.trim()),
             hint: "Check Proton Pass session/key storage: PROTON_PASS_SESSION_DIR, PROTON_PASS_KEY_PROVIDER=fs|env|keyring, and PROTON_PASS_ENCRYPTION_KEY".to_string(),
             url: "https://fnox.jdx.dev/providers/proton-pass".to_string(),
         };
@@ -268,7 +268,7 @@ fn classify_cli_error(stderr: &str, secret_ref: Option<&str>) -> FnoxError {
     {
         return FnoxError::ProviderAuthFailed {
             provider: "Proton Pass".to_string(),
-            details: stderr.trim().to_string(),
+            details: ProviderDetails::output(stderr.trim()),
             hint: "Run 'pass-cli login', or set PROTON_PASS_PERSONAL_ACCESS_TOKEN and run 'pass-cli login' for PAT/agent access".to_string(),
             url: "https://fnox.jdx.dev/providers/proton-pass".to_string(),
         };
@@ -296,7 +296,7 @@ fn classify_cli_error(stderr: &str, secret_ref: Option<&str>) -> FnoxError {
 
     FnoxError::ProviderCliFailed {
         provider: "Proton Pass".to_string(),
-        details: stderr.trim().to_string(),
+        details: ProviderDetails::output(stderr.trim()),
         hint: "Check your Proton Pass configuration and authentication".to_string(),
         url: "https://fnox.jdx.dev/providers/proton-pass".to_string(),
     }
@@ -316,7 +316,10 @@ impl crate::providers::Provider for ProtonPassProvider {
                 .as_ref()
                 .ok_or_else(|| FnoxError::ProviderInvalidResponse {
                     provider: "Proton Pass".to_string(),
-                    details: format!("Unknown vault for id-based reference: '{}'", value),
+                    details: ProviderDetails::relayed(
+                        "Unknown vault for id-based reference",
+                        value,
+                    ),
                     hint: "Specify a vault in the provider config when using id: references"
                         .to_string(),
                     url: "https://fnox.jdx.dev/providers/proton-pass".to_string(),
@@ -684,7 +687,7 @@ mod tests {
 
         match error {
             FnoxError::ProviderCliFailed { details, hint, .. } => {
-                assert_eq!(details, stderr);
+                assert_eq!(details, ProviderDetails::output(stderr));
                 assert_eq!(
                     hint,
                     "Run 'pass-cli session unlock' to unlock your Proton Pass session"
@@ -708,7 +711,7 @@ mod tests {
 
         match error {
             FnoxError::ProviderCliFailed { details, hint, .. } => {
-                assert_eq!(details, stderr);
+                assert_eq!(details, ProviderDetails::output(stderr));
                 assert_eq!(
                     hint,
                     "Check your Proton Pass configuration and authentication"

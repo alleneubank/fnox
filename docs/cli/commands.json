@@ -2667,8 +2667,8 @@
       {
         "name": "verbose",
         "usage": "-v --verbose",
-        "help": "Enable verbose logging",
-        "help_first_line": "Enable verbose logging",
+        "help": "Enable verbose logging and show provider error output, which can contain secret values",
+        "help_first_line": "Enable verbose logging and show provider error output, which can contain secret values",
         "short": ["v"],
         "long": ["verbose"],
         "hide": false,

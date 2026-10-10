@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::error::{FnoxError, Result};
+use crate::error::{FnoxError, ProviderDetails, Result};
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::{FutureExt, StreamExt};
@@ -34,7 +34,7 @@ impl From<GoogleSecretManagerCreateClientError> for FnoxError {
             GoogleSecretManagerCreateClientError::ProviderAuthFailed { details } => {
                 FnoxError::ProviderAuthFailed {
                     provider: PROVIDER_NAME.to_string(),
-                    details,
+                    details: ProviderDetails::output(&details),
                     hint: "Run 'gcloud auth application-default login' or set GOOGLE_APPLICATION_CREDENTIALS".to_string(),
                     url: URL.to_string(),
                 }
@@ -42,7 +42,7 @@ impl From<GoogleSecretManagerCreateClientError> for FnoxError {
             GoogleSecretManagerCreateClientError::ProviderApiFailed { details } => {
                 FnoxError::ProviderApiError {
                     provider: PROVIDER_NAME.to_string(),
-                    details,
+                    details: ProviderDetails::output(&details),
                     hint: "Check your GCP project configuration".to_string(),
                     url: URL.to_string(),
                 }
@@ -137,7 +137,7 @@ impl GoogleSecretManagerProvider {
             .payload
             .ok_or_else(|| FnoxError::ProviderInvalidResponse {
                 provider: PROVIDER_NAME.to_string(),
-                details: "Secret has no payload".to_string(),
+                details: ProviderDetails::authored("Secret has no payload"),
                 hint: "The secret exists but has no value".to_string(),
                 url: URL.to_string(),
             })?;
@@ -145,7 +145,7 @@ impl GoogleSecretManagerProvider {
         // Convert bytes to string
         String::from_utf8(payload.data.to_vec()).map_err(|e| FnoxError::ProviderInvalidResponse {
             provider: PROVIDER_NAME.to_string(),
-            details: format!("Secret value is not valid UTF-8: {}", e),
+            details: ProviderDetails::relayed("Secret value is not valid UTF-8", &e),
             hint: "The secret contains binary data that cannot be decoded as UTF-8".to_string(),
             url: URL.to_string(),
         })
@@ -213,14 +213,14 @@ fn convert_provider_error(e: google_cloud_secretmanager_v1::Error, permission: &
     if err_str.contains("PERMISSION_DENIED") || err_str.contains("permission") {
         FnoxError::ProviderAuthFailed {
             provider: PROVIDER_NAME.to_string(),
-            details: err_str,
+            details: ProviderDetails::output(&err_str),
             hint: format!("Check IAM permissions for {permission}"),
             url: URL.to_string(),
         }
     } else {
         FnoxError::ProviderApiError {
             provider: PROVIDER_NAME.to_string(),
-            details: err_str,
+            details: ProviderDetails::output(&err_str),
             hint: "Check your GCP configuration".to_string(),
             url: URL.to_string(),
         }
@@ -277,16 +277,16 @@ impl crate::providers::Provider for GoogleSecretManagerProvider {
                 if err_str.contains("PERMISSION_DENIED") || err_str.contains("permission") {
                     FnoxError::ProviderAuthFailed {
                         provider: "GCP Secret Manager".to_string(),
-                        details: err_str,
+                        details: ProviderDetails::output(&err_str),
                         hint: "Check IAM permissions for secretmanager.secrets.list".to_string(),
                         url: URL.to_string(),
                     }
                 } else {
                     FnoxError::ProviderApiError {
                         provider: "GCP Secret Manager".to_string(),
-                        details: format!(
-                            "Failed to access project '{}': {}",
-                            self.project, err_str
+                        details: ProviderDetails::relayed(
+                            format!("Failed to access project '{}'", self.project),
+                            &err_str,
                         ),
                         hint: "Check that the project exists and you have access".to_string(),
                         url: URL.to_string(),

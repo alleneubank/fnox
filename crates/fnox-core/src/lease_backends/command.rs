@@ -1,4 +1,4 @@
-use crate::error::{FnoxError, Result};
+use crate::error::{FnoxError, ProviderDetails, Result};
 use crate::lease_backends::{Lease, LeaseBackend};
 use async_trait::async_trait;
 use indexmap::IndexMap;
@@ -52,17 +52,18 @@ impl CommandBackend {
             .await
             .map_err(|_| FnoxError::ProviderCliFailed {
                 provider: "Command".to_string(),
-                details: format!("{} timed out after {}s", action, self.timeout.as_secs()),
-                hint: format!(
-                    "Check that '{}' completes in time, or increase the timeout",
-                    cmd_str
-                ),
+                details: ProviderDetails::authored(format!(
+                    "{} timed out after {}s",
+                    action,
+                    self.timeout.as_secs()
+                )),
+                hint: format!("Check that the {action} completes in time, or increase the timeout"),
                 url: URL.to_string(),
             })?
             .map_err(|e| FnoxError::ProviderCliFailed {
                 provider: "Command".to_string(),
-                details: e.to_string(),
-                hint: format!("Failed to execute {}: {}", action, cmd_str),
+                details: ProviderDetails::output(&e),
+                hint: format!("Failed to execute the {action}"),
                 url: URL.to_string(),
             })?;
 
@@ -70,7 +71,7 @@ impl CommandBackend {
             let stderr = String::from_utf8_lossy(&output.stderr);
             return Err(FnoxError::ProviderCliFailed {
                 provider: "Command".to_string(),
-                details: stderr.trim().to_string(),
+                details: ProviderDetails::output(stderr.trim()),
                 hint: format!("{} exited with {}", action, output.status),
                 url: URL.to_string(),
             });
@@ -97,7 +98,7 @@ impl LeaseBackend for CommandBackend {
         let stdout =
             String::from_utf8(output.stdout).map_err(|e| FnoxError::ProviderInvalidResponse {
                 provider: "Command".to_string(),
-                details: format!("Invalid UTF-8 in command output: {}", e),
+                details: ProviderDetails::relayed("Invalid UTF-8 in command output", &e),
                 hint: "Command must output valid UTF-8 JSON".to_string(),
                 url: URL.to_string(),
             })?;
@@ -105,7 +106,7 @@ impl LeaseBackend for CommandBackend {
         let parsed: serde_json::Value =
             serde_json::from_str(&stdout).map_err(|e| FnoxError::ProviderInvalidResponse {
                 provider: "Command".to_string(),
-                details: format!("Invalid JSON output: {}", e),
+                details: ProviderDetails::relayed("Invalid JSON output", &e),
                 hint: "Command must output JSON with a 'credentials' object".to_string(),
                 url: URL.to_string(),
             })?;
@@ -113,7 +114,7 @@ impl LeaseBackend for CommandBackend {
         let creds_obj = parsed["credentials"].as_object().ok_or_else(|| {
             FnoxError::ProviderInvalidResponse {
                 provider: "Command".to_string(),
-                details: "Output missing 'credentials' object".to_string(),
+                details: ProviderDetails::authored("Output missing 'credentials' object"),
                 hint: "Command must output JSON: { \"credentials\": { \"KEY\": \"value\" } }"
                     .to_string(),
                 url: URL.to_string(),
@@ -134,7 +135,9 @@ impl LeaseBackend for CommandBackend {
         if credentials.is_empty() {
             return Err(FnoxError::ProviderInvalidResponse {
                 provider: "Command".to_string(),
-                details: "Command returned an empty 'credentials' object".to_string(),
+                details: ProviderDetails::authored(
+                    "Command returned an empty 'credentials' object",
+                ),
                 hint: "Ensure the command outputs at least one string credential".to_string(),
                 url: URL.to_string(),
             });

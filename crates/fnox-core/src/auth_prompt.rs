@@ -86,6 +86,7 @@ fn run_auth_command(auth_command: &str) -> std::io::Result<std::process::ExitSta
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::error::ProviderDetails;
     use crate::providers::OptionStringOrSecretRef;
 
     fn provider_with_auth_command() -> ProviderConfig {
@@ -119,7 +120,7 @@ mod tests {
         let provider_config = provider_with_auth_command();
         let error = FnoxError::ProviderCliFailed {
             provider: "test".to_string(),
-            details: "field does not exist".to_string(),
+            details: ProviderDetails::authored("field does not exist"),
             hint: "check".to_string(),
             url: "https://example.com".to_string(),
         };

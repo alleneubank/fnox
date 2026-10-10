@@ -1,5 +1,5 @@
 use crate::env;
-use crate::error::{FnoxError, Result};
+use crate::error::{FnoxError, ProviderDetails, Result};
 use async_trait::async_trait;
 use regex::Regex;
 use std::collections::HashMap;
@@ -50,7 +50,7 @@ impl OnePasswordProvider {
         if self.vault.is_none() {
             return Err(FnoxError::ProviderInvalidResponse {
                 provider: "1Password".to_string(),
-                details: format!("Unknown secret vault for: '{}'", value),
+                details: ProviderDetails::relayed("Unknown secret vault for", value),
                 hint: "Specify a vault in the provider config or use a full 'op://' reference"
                     .to_string(),
                 url: "https://fnox.jdx.dev/providers/1password".to_string(),
@@ -74,7 +74,7 @@ impl OnePasswordProvider {
             )),
             _ => Err(FnoxError::ProviderInvalidResponse {
                 provider: "1Password".to_string(),
-                details: format!("Invalid secret reference format: '{}'", value),
+                details: ProviderDetails::relayed("Invalid secret reference format", value),
                 hint: "Expected 'item', 'item/field', or 'op://vault/item/field'".to_string(),
                 url: "https://fnox.jdx.dev/providers/1password".to_string(),
             }),
@@ -111,7 +111,7 @@ impl OnePasswordProvider {
             } else {
                 FnoxError::ProviderCliFailed {
                     provider: "1Password".to_string(),
-                    details: e.to_string(),
+                    details: ProviderDetails::output(&e),
                     hint: "Check that the 1Password CLI is installed and accessible".to_string(),
                     url: "https://fnox.jdx.dev/providers/1password".to_string(),
                 }
@@ -134,7 +134,7 @@ impl OnePasswordProvider {
             {
                 return Err(FnoxError::ProviderAuthFailed {
                     provider: "1Password".to_string(),
-                    details: stderr.to_string(),
+                    details: ProviderDetails::output(stderr),
                     hint: "Run 'op signin' or set OP_SERVICE_ACCOUNT_TOKEN".to_string(),
                     url: "https://fnox.jdx.dev/providers/1password".to_string(),
                 });
@@ -142,7 +142,7 @@ impl OnePasswordProvider {
 
             return Err(FnoxError::ProviderCliFailed {
                 provider: "1Password".to_string(),
-                details: stderr.to_string(),
+                details: ProviderDetails::output(stderr),
                 hint: "Check your 1Password configuration and authentication".to_string(),
                 url: "https://fnox.jdx.dev/providers/1password".to_string(),
             });
@@ -151,7 +151,7 @@ impl OnePasswordProvider {
         let stdout =
             String::from_utf8(output.stdout).map_err(|e| FnoxError::ProviderInvalidResponse {
                 provider: "1Password".to_string(),
-                details: format!("Invalid UTF-8 in command output: {}", e),
+                details: ProviderDetails::relayed("Invalid UTF-8 in command output", &e),
                 hint: "The secret value contains invalid UTF-8 characters".to_string(),
                 url: "https://fnox.jdx.dev/providers/1password".to_string(),
             })?;
@@ -193,7 +193,7 @@ impl OnePasswordProvider {
             } else {
                 FnoxError::ProviderCliFailed {
                     provider: "1Password".to_string(),
-                    details: e.to_string(),
+                    details: ProviderDetails::output(&e),
                     hint: "Check that the 1Password CLI is installed and accessible".to_string(),
                     url: "https://fnox.jdx.dev/providers/1password".to_string(),
                 }
@@ -207,7 +207,7 @@ impl OnePasswordProvider {
                 .await
                 .map_err(|e| FnoxError::ProviderCliFailed {
                     provider: "1Password".to_string(),
-                    details: format!("Failed to write to stdin: {}", e),
+                    details: ProviderDetails::relayed("Failed to write to stdin", &e),
                     hint: "This is an internal error".to_string(),
                     url: "https://fnox.jdx.dev/providers/1password".to_string(),
                 })?;
@@ -218,7 +218,7 @@ impl OnePasswordProvider {
             .await
             .map_err(|e| FnoxError::ProviderCliFailed {
                 provider: "1Password".to_string(),
-                details: format!("Failed to wait for command: {}", e),
+                details: ProviderDetails::relayed("Failed to wait for command", &e),
                 hint: "This is an internal error".to_string(),
                 url: "https://fnox.jdx.dev/providers/1password".to_string(),
             })?;
@@ -239,7 +239,7 @@ impl OnePasswordProvider {
             {
                 return Err(FnoxError::ProviderAuthFailed {
                     provider: "1Password".to_string(),
-                    details: stderr.to_string(),
+                    details: ProviderDetails::output(stderr),
                     hint: "Run 'op signin' or set OP_SERVICE_ACCOUNT_TOKEN".to_string(),
                     url: "https://fnox.jdx.dev/providers/1password".to_string(),
                 });
@@ -247,7 +247,7 @@ impl OnePasswordProvider {
 
             return Err(FnoxError::ProviderCliFailed {
                 provider: "1Password".to_string(),
-                details: stderr.to_string(),
+                details: ProviderDetails::output(stderr),
                 hint: "Check your 1Password configuration and authentication".to_string(),
                 url: "https://fnox.jdx.dev/providers/1password".to_string(),
             });
@@ -256,7 +256,7 @@ impl OnePasswordProvider {
         let stdout =
             String::from_utf8(output.stdout).map_err(|e| FnoxError::ProviderInvalidResponse {
                 provider: "1Password".to_string(),
-                details: format!("Invalid UTF-8 in command output: {}", e),
+                details: ProviderDetails::relayed("Invalid UTF-8 in command output", &e),
                 hint: "The secret value contains invalid UTF-8 characters".to_string(),
                 url: "https://fnox.jdx.dev/providers/1password".to_string(),
             })?;

@@ -1,4 +1,4 @@
-use crate::error::{FnoxError, Result};
+use crate::error::{FnoxError, ProviderDetails, Result};
 use async_trait::async_trait;
 use azure_core::{Error, error::ErrorKind, http::StatusCode};
 use azure_identity::DeveloperToolsCredential;
@@ -25,13 +25,16 @@ fn handle_connection_test_error(vault_url: &str, error: Error) -> Result<()> {
             ..
         } => Err(FnoxError::ProviderAuthFailed {
             provider: "Azure Key Vault".to_string(),
-            details,
+            details: ProviderDetails::output(&details),
             hint: "Check your Azure Key Vault access policies".to_string(),
             url: URL.to_string(),
         }),
         _ => Err(FnoxError::ProviderApiError {
             provider: "Azure Key Vault".to_string(),
-            details: format!("Failed to connect to vault '{}': {}", vault_url, details),
+            details: ProviderDetails::relayed(
+                format!("Failed to connect to vault '{}'", vault_url),
+                &details,
+            ),
             hint: "Check your Azure Key Vault URL and network connectivity".to_string(),
             url: URL.to_string(),
         }),
@@ -63,7 +66,7 @@ impl AzureSecretsManagerProvider {
         let credential =
             DeveloperToolsCredential::new(None).map_err(|e| FnoxError::ProviderAuthFailed {
                 provider: "Azure Key Vault".to_string(),
-                details: e.to_string(),
+                details: ProviderDetails::output(&e),
                 hint: "Run 'az login' to authenticate with Azure".to_string(),
                 url: URL.to_string(),
             })?;
@@ -71,7 +74,7 @@ impl AzureSecretsManagerProvider {
         SecretClient::new(&self.vault_url, credential, None).map_err(|e| {
             FnoxError::ProviderApiError {
                 provider: "Azure Key Vault".to_string(),
-                details: e.to_string(),
+                details: ProviderDetails::output(&e),
                 hint: "Check your Azure Key Vault URL".to_string(),
                 url: URL.to_string(),
             }
@@ -99,14 +102,14 @@ impl AzureSecretsManagerProvider {
             } else if err_str.contains("Forbidden") || err_str.contains("Unauthorized") {
                 FnoxError::ProviderAuthFailed {
                     provider: "Azure Key Vault".to_string(),
-                    details: err_str,
+                    details: ProviderDetails::output(&err_str),
                     hint: "Check your Azure Key Vault access policies".to_string(),
                     url: URL.to_string(),
                 }
             } else {
                 FnoxError::ProviderApiError {
                     provider: "Azure Key Vault".to_string(),
-                    details: err_str,
+                    details: ProviderDetails::output(&err_str),
                     hint: "Check your Azure Key Vault configuration".to_string(),
                     url: URL.to_string(),
                 }
@@ -117,7 +120,7 @@ impl AzureSecretsManagerProvider {
             .into_model()
             .map_err(|e| FnoxError::ProviderInvalidResponse {
                 provider: "Azure Key Vault".to_string(),
-                details: format!("Failed to parse secret response: {}", e),
+                details: ProviderDetails::relayed("Failed to parse secret response", &e),
                 hint: "This is an unexpected error".to_string(),
                 url: URL.to_string(),
             })?;
@@ -126,7 +129,10 @@ impl AzureSecretsManagerProvider {
             .value
             .ok_or_else(|| FnoxError::ProviderInvalidResponse {
                 provider: "Azure Key Vault".to_string(),
-                details: format!("Secret '{}' has no value", secret_name),
+                details: ProviderDetails::authored(format!(
+                    "Secret '{}' has no value",
+                    secret_name
+                )),
                 hint: "The secret exists but has no value set".to_string(),
                 url: URL.to_string(),
             })
@@ -149,7 +155,10 @@ impl AzureSecretsManagerProvider {
                     .try_into()
                     .map_err(|e| FnoxError::ProviderInvalidResponse {
                         provider: "Azure Key Vault".to_string(),
-                        details: format!("Failed to create set_secret parameters: {}", e),
+                        details: ProviderDetails::relayed(
+                            "Failed to create set_secret parameters",
+                            &e,
+                        ),
                         hint: "This is an unexpected error".to_string(),
                         url: URL.to_string(),
                     })?,
@@ -161,14 +170,14 @@ impl AzureSecretsManagerProvider {
                 if err_str.contains("Forbidden") || err_str.contains("Unauthorized") {
                     FnoxError::ProviderAuthFailed {
                         provider: "Azure Key Vault".to_string(),
-                        details: err_str,
+                        details: ProviderDetails::output(&err_str),
                         hint: "Check your Azure Key Vault access policies".to_string(),
                         url: URL.to_string(),
                     }
                 } else {
                     FnoxError::ProviderApiError {
                         provider: "Azure Key Vault".to_string(),
-                        details: err_str,
+                        details: ProviderDetails::output(&err_str),
                         hint: "Check your Azure Key Vault configuration".to_string(),
                         url: URL.to_string(),
                     }

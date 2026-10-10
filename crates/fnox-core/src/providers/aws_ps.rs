@@ -1,4 +1,4 @@
-use crate::error::{FnoxError, Result};
+use crate::error::{FnoxError, ProviderDetails, Result};
 use async_trait::async_trait;
 use aws_sdk_ssm::Client;
 use std::collections::HashMap;
@@ -33,14 +33,14 @@ where
             } else if err_str.contains("AccessDenied") || err_str.contains("UnauthorizedAccess") {
                 FnoxError::ProviderAuthFailed {
                     provider: "AWS Parameter Store".to_string(),
-                    details: err_str,
+                    details: ProviderDetails::output(&err_str),
                     hint: "Check IAM permissions for ssm:GetParameter".to_string(),
                     url: URL.to_string(),
                 }
             } else {
                 FnoxError::ProviderApiError {
                     provider: "AWS Parameter Store".to_string(),
-                    details: err_str,
+                    details: ProviderDetails::output(&err_str),
                     hint: "Check AWS Parameter Store configuration".to_string(),
                     url: URL.to_string(),
                 }
@@ -48,7 +48,7 @@ where
         }
         SdkError::TimeoutError(_) => FnoxError::ProviderApiError {
             provider: "AWS Parameter Store".to_string(),
-            details: "Request timed out".to_string(),
+            details: ProviderDetails::authored("Request timed out"),
             hint: "Check network connectivity and AWS region endpoint".to_string(),
             url: URL.to_string(),
         },
@@ -86,14 +86,14 @@ where
                 if full_error.contains("credentials") {
                     FnoxError::ProviderAuthFailed {
                         provider: "AWS Parameter Store".to_string(),
-                        details: full_error,
+                        details: ProviderDetails::output(&full_error),
                         hint: hint.to_string(),
                         url: URL.to_string(),
                     }
                 } else {
                     FnoxError::ProviderApiError {
                         provider: "AWS Parameter Store".to_string(),
-                        details: full_error,
+                        details: ProviderDetails::output(&full_error),
                         hint: hint.to_string(),
                         url: URL.to_string(),
                     }
@@ -101,7 +101,7 @@ where
             } else {
                 FnoxError::ProviderApiError {
                     provider: "AWS Parameter Store".to_string(),
-                    details: format!("{:?}", dispatch_err),
+                    details: ProviderDetails::output(format!("{dispatch_err:?}")),
                     hint: "Check network connectivity".to_string(),
                     url: URL.to_string(),
                 }
@@ -109,7 +109,7 @@ where
         }
         _ => FnoxError::ProviderApiError {
             provider: "AWS Parameter Store".to_string(),
-            details: err.to_string(),
+            details: ProviderDetails::output(err),
             hint: "Check AWS configuration".to_string(),
             url: URL.to_string(),
         },
@@ -184,7 +184,10 @@ impl AwsParameterStoreProvider {
             .and_then(|p| p.value())
             .ok_or_else(|| FnoxError::ProviderInvalidResponse {
                 provider: "AWS Parameter Store".to_string(),
-                details: format!("Parameter '{}' has no value", parameter_name),
+                details: ProviderDetails::authored(format!(
+                    "Parameter '{}' has no value",
+                    parameter_name
+                )),
                 hint: "The parameter exists but has no value set".to_string(),
                 url: URL.to_string(),
             })
@@ -241,7 +244,10 @@ impl AwsParameterStoreProvider {
                                     key.clone(),
                                     Err(FnoxError::ProviderInvalidResponse {
                                         provider: "AWS Parameter Store".to_string(),
-                                        details: format!("Parameter '{}' has no value", name),
+                                        details: ProviderDetails::authored(format!(
+                                            "Parameter '{}' has no value",
+                                            name
+                                        )),
                                         hint: "The parameter exists but has no value set"
                                             .to_string(),
                                         url: URL.to_string(),
@@ -363,7 +369,7 @@ impl crate::providers::Provider for AwsParameterStoreProvider {
                             key.clone(),
                             Err(FnoxError::ProviderAuthFailed {
                                 provider: "AWS Parameter Store".to_string(),
-                                details: e.to_string(),
+                                details: ProviderDetails::output(&e),
                                 hint: "Run 'aws sso login' or check AWS credentials".to_string(),
                                 url: URL.to_string(),
                             }),

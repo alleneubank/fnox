@@ -1,4 +1,4 @@
-use crate::error::{FnoxError, Result};
+use crate::error::{FnoxError, ProviderDetails, Result};
 use crate::lease_backends::{Lease, LeaseBackend};
 use async_trait::async_trait;
 use azure_core::credentials::TokenCredential;
@@ -60,7 +60,7 @@ impl AzureTokenBackend {
             )
             .map_err(|e: azure_core::Error| FnoxError::ProviderAuthFailed {
                 provider: "Azure Token".to_string(),
-                details: e.to_string(),
+                details: ProviderDetails::output(&e),
                 hint: "Check AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET".to_string(),
                 url: URL.to_string(),
             })?;
@@ -71,7 +71,7 @@ impl AzureTokenBackend {
         let cred = azure_identity::DeveloperToolsCredential::new(None).map_err(
             |e: azure_core::Error| FnoxError::ProviderAuthFailed {
                 provider: "Azure Token".to_string(),
-                details: e.to_string(),
+                details: ProviderDetails::output(&e),
                 hint: "Run 'az login' or set AZURE_CLIENT_ID/AZURE_CLIENT_SECRET/AZURE_TENANT_ID"
                     .to_string(),
                 url: URL.to_string(),
@@ -98,7 +98,7 @@ impl LeaseBackend for AzureTokenBackend {
                 .await
                 .map_err(|e: azure_core::Error| FnoxError::ProviderAuthFailed {
                     provider: "Azure Token".to_string(),
-                    details: e.to_string(),
+                    details: ProviderDetails::output(&e),
                     hint: "Failed to acquire Azure token. Check credentials and scope.".to_string(),
                     url: URL.to_string(),
                 })?;

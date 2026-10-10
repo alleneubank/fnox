@@ -28,5 +28,5 @@ pub mod suggest;
 pub mod temp_file_secrets;
 
 // Re-export commonly used items
-pub use error::{FnoxError, Result};
+pub use error::{FnoxError, ProviderDetails, Result};
 pub use library::Fnox;

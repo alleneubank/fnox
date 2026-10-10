@@ -33,7 +33,7 @@ New to fnox? Follow the [quick start](/guide/quick-start). Put fnox options befo
   **Default:** `fnox.toml`
 
 - **`-P --profile <PROFILE>`** — Profile to use (default: default, or FNOX_PROFILE env var). Supports multiple profiles separated by commas or repeated flags; later profiles overlay earlier ones.
-- **`-v --verbose`** — Enable verbose logging
+- **`-v --verbose`** — Enable verbose logging and show provider error output, which can contain secret values
 - **`--if-missing <IF_MISSING>`** — What to do if a secret is missing (error, warn, ignore)
 - **`--no-color`** — Disable colored output
 - **`--no-daemon`** — Disable daemon-backed resolution for this invocation

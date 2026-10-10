@@ -1,4 +1,4 @@
-use crate::error::{FnoxError, Result};
+use crate::error::{FnoxError, ProviderDetails, Result};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::{Arc, LazyLock, Mutex};
@@ -59,13 +59,16 @@ pub async fn run(
         .await
         .map_err(|_| FnoxError::ProviderCliFailed {
             provider: provider.to_string(),
-            details: format!("credential_command timed out after {}s", timeout.as_secs()),
+            details: ProviderDetails::authored(format!(
+                "credential_command timed out after {}s",
+                timeout.as_secs()
+            )),
             hint: "Check that credential_command completes in time".to_string(),
             url: url.to_string(),
         })?
         .map_err(|e| FnoxError::ProviderCliFailed {
             provider: provider.to_string(),
-            details: e.to_string(),
+            details: ProviderDetails::output(&e),
             hint: "Failed to execute credential_command".to_string(),
             url: url.to_string(),
         })?;
@@ -74,7 +77,7 @@ pub async fn run(
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(FnoxError::ProviderCliFailed {
             provider: provider.to_string(),
-            details: stderr.trim().to_string(),
+            details: ProviderDetails::output(stderr.trim()),
             hint: format!("credential_command exited with {}", output.status),
             url: url.to_string(),
         });
@@ -83,7 +86,7 @@ pub async fn run(
     let stdout =
         String::from_utf8(output.stdout).map_err(|e| FnoxError::ProviderInvalidResponse {
             provider: provider.to_string(),
-            details: format!("Invalid UTF-8 in credential_command output: {e}"),
+            details: ProviderDetails::relayed("Invalid UTF-8 in credential_command output", &e),
             hint: "credential_command must output a UTF-8 token".to_string(),
             url: url.to_string(),
         })?;
@@ -91,7 +94,7 @@ pub async fn run(
     if token.is_empty() {
         return Err(FnoxError::ProviderInvalidResponse {
             provider: provider.to_string(),
-            details: "credential_command returned empty stdout".to_string(),
+            details: ProviderDetails::authored("credential_command returned empty stdout"),
             hint: "Ensure credential_command prints the token to stdout".to_string(),
             url: url.to_string(),
         });
@@ -124,7 +127,7 @@ fn render_command(provider: &str, command: &str, context: Value, url: &str) -> R
         Context::from_serialize(&context).map_err(|e| FnoxError::Config(e.to_string()))?;
     Tera::one_off(command, &tera_context, false).map_err(|e| FnoxError::ProviderCliFailed {
         provider: provider.to_string(),
-        details: format!("Failed to render credential_command: {e}"),
+        details: ProviderDetails::relayed("Failed to render credential_command", &e),
         hint: "Check credential_command template syntax".to_string(),
         url: url.to_string(),
     })

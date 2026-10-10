@@ -1,4 +1,4 @@
-use crate::error::{FnoxError, Result};
+use crate::error::{FnoxError, ProviderDetails, Result};
 use async_trait::async_trait;
 use azure_core::credentials::TokenCredential;
 use azure_identity::DeveloperToolsCredential;
@@ -64,7 +64,7 @@ fn validate_kv_list(body: &str) -> Result<()> {
         .map(|_| ())
         .map_err(|e| FnoxError::ProviderInvalidResponse {
             provider: PROVIDER_NAME.to_string(),
-            details: format!("Endpoint did not return a key-value list: {}", e),
+            details: ProviderDetails::relayed("Endpoint did not return a key-value list", &e),
             hint: "Check that the endpoint is your App Configuration store".to_string(),
             url: PROVIDER_URL.to_string(),
         })
@@ -119,7 +119,7 @@ impl AzureAppConfigurationProvider {
             .await
             .map_err(|e| FnoxError::ProviderApiError {
                 provider: PROVIDER_NAME.to_string(),
-                details: format!("HTTP request failed: {}", e),
+                details: ProviderDetails::relayed("HTTP request failed", &e),
                 hint: "Check network connectivity to the App Configuration store".to_string(),
                 url: PROVIDER_URL.to_string(),
             })?;
@@ -134,7 +134,7 @@ impl AzureAppConfigurationProvider {
         if status.as_u16() == 401 || status.as_u16() == 403 {
             return Err(FnoxError::ProviderAuthFailed {
                 provider: PROVIDER_NAME.to_string(),
-                details: format!("HTTP {}: {}", status, body),
+                details: ProviderDetails::relayed(format!("HTTP {}", status), &body),
                 hint: "Grant the 'App Configuration Data Reader' role and check the store's network access rules"
                     .to_string(),
                 url: PROVIDER_URL.to_string(),
@@ -142,7 +142,7 @@ impl AzureAppConfigurationProvider {
         }
         Err(FnoxError::ProviderApiError {
             provider: PROVIDER_NAME.to_string(),
-            details: format!("HTTP {}: {}", status, body),
+            details: ProviderDetails::relayed(format!("HTTP {}", status), &body),
             hint: "Check the store endpoint and your configuration".to_string(),
             url: PROVIDER_URL.to_string(),
         })
@@ -153,7 +153,7 @@ impl AzureAppConfigurationProvider {
         let credential = DeveloperToolsCredential::new(None).map_err(|e: azure_core::Error| {
             FnoxError::ProviderAuthFailed {
                 provider: PROVIDER_NAME.to_string(),
-                details: e.to_string(),
+                details: ProviderDetails::output(&e),
                 hint: "Run 'az login' to authenticate with Azure".to_string(),
                 url: PROVIDER_URL.to_string(),
             }
@@ -165,7 +165,7 @@ impl AzureAppConfigurationProvider {
                 .await
                 .map_err(|e: azure_core::Error| FnoxError::ProviderAuthFailed {
                     provider: PROVIDER_NAME.to_string(),
-                    details: e.to_string(),
+                    details: ProviderDetails::output(&e),
                     hint: "Run 'az login' to authenticate with Azure".to_string(),
                     url: PROVIDER_URL.to_string(),
                 })?;
@@ -211,14 +211,14 @@ impl crate::providers::Provider for AzureAppConfigurationProvider {
                 .await
                 .map_err(|e| FnoxError::ProviderInvalidResponse {
                     provider: PROVIDER_NAME.to_string(),
-                    details: format!("Failed to parse key-value response: {}", e),
+                    details: ProviderDetails::relayed("Failed to parse key-value response", &e),
                     hint: "This is an unexpected error".to_string(),
                     url: PROVIDER_URL.to_string(),
                 })?;
 
         kv.value.ok_or_else(|| FnoxError::ProviderInvalidResponse {
             provider: PROVIDER_NAME.to_string(),
-            details: format!("Key '{}' has no value", key),
+            details: ProviderDetails::authored(format!("Key '{}' has no value", key)),
             hint: "The key exists but has no value set".to_string(),
             url: PROVIDER_URL.to_string(),
         })
@@ -239,7 +239,7 @@ impl crate::providers::Provider for AzureAppConfigurationProvider {
         if !response.status().is_success() {
             return Err(FnoxError::ProviderApiError {
                 provider: PROVIDER_NAME.to_string(),
-                details: format!("HTTP {}", response.status()),
+                details: ProviderDetails::authored(format!("HTTP {}", response.status())),
                 hint: "Check the store endpoint".to_string(),
                 url: PROVIDER_URL.to_string(),
             });
@@ -250,7 +250,7 @@ impl crate::providers::Provider for AzureAppConfigurationProvider {
             .await
             .map_err(|e| FnoxError::ProviderInvalidResponse {
                 provider: PROVIDER_NAME.to_string(),
-                details: format!("Failed to read the key-value list: {}", e),
+                details: ProviderDetails::relayed("Failed to read the key-value list", &e),
                 hint: "Check that the endpoint is your App Configuration store".to_string(),
                 url: PROVIDER_URL.to_string(),
             })?;

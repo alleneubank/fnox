@@ -87,8 +87,10 @@ credential leases.
 `check` normally checks required secrets; `--all` also checks secrets configured
 to warn or ignore when missing. It resolves secrets without printing their
 values. `fnox check KEY` checks one named secret and reports only whether it
-resolved; use it, not `fnox get KEY >/dev/null`, to verify access, because `get`
-relays provider error text on stderr. For unattended commands, add
+resolved; use it, not `fnox get KEY >/dev/null`, to verify access. Provider
+errors hide the provider's own output unless `--verbose` is set, because that
+text can contain secret values; avoid `--verbose` where output is logged or
+shared. For unattended commands, add
 `--non-interactive` to prevent prompts and browser authentication flows;
 provider credentials must already be available.
 

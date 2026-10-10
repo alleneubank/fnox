@@ -1,5 +1,5 @@
 use crate::env;
-use crate::error::{FnoxError, Result};
+use crate::error::{FnoxError, ProviderDetails, Result};
 use crate::lease_backends::{Lease, LeaseBackend};
 use async_trait::async_trait;
 use indexmap::IndexMap;
@@ -103,7 +103,7 @@ impl VaultBackend {
         if token.is_none() && credential_command.is_none() {
             return Err(FnoxError::ProviderAuthFailed {
                 provider: "Vault".to_string(),
-                details: "VAULT_TOKEN not set".to_string(),
+                details: ProviderDetails::authored("VAULT_TOKEN not set"),
                 hint: "Set 'token' in lease config, VAULT_TOKEN env var, or credential_command"
                     .to_string(),
                 url: URL.to_string(),
@@ -157,7 +157,7 @@ impl VaultBackend {
                 .as_ref()
                 .ok_or_else(|| FnoxError::ProviderAuthFailed {
                     provider: "Vault".to_string(),
-                    details: "VAULT_TOKEN not set".to_string(),
+                    details: ProviderDetails::authored("VAULT_TOKEN not set"),
                     hint: "Set 'token' in lease config, VAULT_TOKEN env var, or credential_command"
                         .to_string(),
                     url: URL.to_string(),
@@ -230,7 +230,7 @@ impl LeaseBackend for VaultBackend {
             .await
             .map_err(|e| FnoxError::ProviderApiError {
                 provider: "Vault".to_string(),
-                details: e.to_string(),
+                details: ProviderDetails::output(&e),
                 hint: "Failed to connect to Vault server".to_string(),
                 url: URL.to_string(),
             })?;
@@ -242,14 +242,14 @@ impl LeaseBackend for VaultBackend {
                 self.invalidate_credential_command()?;
                 return Err(FnoxError::ProviderAuthFailed {
                     provider: "Vault".to_string(),
-                    details: body_text,
+                    details: ProviderDetails::output(&body_text),
                     hint: "Check your Vault token has the required permissions".to_string(),
                     url: URL.to_string(),
                 });
             }
             return Err(FnoxError::ProviderApiError {
                 provider: "Vault".to_string(),
-                details: format!("HTTP {}: {}", status, body_text),
+                details: ProviderDetails::relayed(format!("HTTP {}", status), &body_text),
                 hint: "Check secret_path and Vault configuration".to_string(),
                 url: URL.to_string(),
             });
@@ -261,7 +261,7 @@ impl LeaseBackend for VaultBackend {
                 .await
                 .map_err(|e| FnoxError::ProviderInvalidResponse {
                     provider: "Vault".to_string(),
-                    details: e.to_string(),
+                    details: ProviderDetails::output(&e),
                     hint: "Unexpected response from Vault".to_string(),
                     url: URL.to_string(),
                 })?;
@@ -271,7 +271,7 @@ impl LeaseBackend for VaultBackend {
                 .as_object()
                 .ok_or_else(|| FnoxError::ProviderInvalidResponse {
                     provider: "Vault".to_string(),
-                    details: "Response missing 'data' field".to_string(),
+                    details: ProviderDetails::authored("Response missing 'data' field"),
                     hint: "Check that the secret_path is a valid dynamic secret engine path"
                         .to_string(),
                     url: URL.to_string(),
@@ -300,7 +300,9 @@ impl LeaseBackend for VaultBackend {
         if credentials.is_empty() && !self.env_map.is_empty() {
             return Err(FnoxError::ProviderInvalidResponse {
                 provider: "Vault".to_string(),
-                details: "No configured env_map keys found in Vault response data".to_string(),
+                details: ProviderDetails::authored(
+                    "No configured env_map keys found in Vault response data",
+                ),
                 hint: "Check that env_map keys match the fields returned by the secret engine"
                     .to_string(),
                 url: URL.to_string(),
@@ -369,7 +371,7 @@ impl LeaseBackend for VaultBackend {
             .await
             .map_err(|e| FnoxError::ProviderApiError {
                 provider: "Vault".to_string(),
-                details: e.to_string(),
+                details: ProviderDetails::output(&e),
                 hint: "Failed to revoke Vault lease".to_string(),
                 url: URL.to_string(),
             })?;
@@ -381,7 +383,7 @@ impl LeaseBackend for VaultBackend {
                 self.invalidate_credential_command()?;
                 return Err(FnoxError::ProviderAuthFailed {
                     provider: "Vault".to_string(),
-                    details: body_text,
+                    details: ProviderDetails::output(&body_text),
                     hint: "Vault token needs 'update' permission on 'sys/leases/revoke'. \
                            Add `path \"sys/leases/revoke\" { capabilities = [\"update\"] }` \
                            to your Vault policy."
@@ -391,7 +393,7 @@ impl LeaseBackend for VaultBackend {
             }
             return Err(FnoxError::ProviderApiError {
                 provider: "Vault".to_string(),
-                details: format!("HTTP {}: {}", status, body_text),
+                details: ProviderDetails::relayed(format!("HTTP {}", status), &body_text),
                 hint: "Failed to revoke Vault lease".to_string(),
                 url: URL.to_string(),
             });

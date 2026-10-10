@@ -1,5 +1,5 @@
 use crate::env;
-use crate::error::{FnoxError, Result};
+use crate::error::{FnoxError, ProviderDetails, Result};
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::{LazyLock, Mutex};
@@ -38,7 +38,7 @@ impl InfisicalProvider {
         // Check if we have client credentials to obtain a token
         let client_id = infisical_client_id().ok_or_else(|| FnoxError::ProviderAuthFailed {
             provider: PROVIDER_NAME.to_string(),
-            details: "Authentication not found".to_string(),
+            details: ProviderDetails::authored("Authentication not found"),
             hint: "Set INFISICAL_TOKEN, or both INFISICAL_CLIENT_ID and INFISICAL_CLIENT_SECRET"
                 .to_string(),
             url: PROVIDER_URL.to_string(),
@@ -47,7 +47,7 @@ impl InfisicalProvider {
         let client_secret =
             infisical_client_secret().ok_or_else(|| FnoxError::ProviderAuthFailed {
                 provider: PROVIDER_NAME.to_string(),
-                details: "Client secret not found".to_string(),
+                details: ProviderDetails::authored("Client secret not found"),
                 hint: "Set INFISICAL_CLIENT_SECRET or FNOX_INFISICAL_CLIENT_SECRET".to_string(),
                 url: PROVIDER_URL.to_string(),
             })?;
@@ -104,7 +104,7 @@ impl InfisicalProvider {
             } else {
                 FnoxError::ProviderCliFailed {
                     provider: PROVIDER_NAME.to_string(),
-                    details: e.to_string(),
+                    details: ProviderDetails::output(&e),
                     hint: "Check that the Infisical CLI is installed and accessible".to_string(),
                     url: PROVIDER_URL.to_string(),
                 }
@@ -115,7 +115,7 @@ impl InfisicalProvider {
             let stderr = String::from_utf8_lossy(&output.stderr);
             return Err(FnoxError::ProviderAuthFailed {
                 provider: PROVIDER_NAME.to_string(),
-                details: stderr.trim().to_string(),
+                details: ProviderDetails::output(stderr.trim()),
                 hint: "Check your client ID and client secret".to_string(),
                 url: PROVIDER_URL.to_string(),
             });
@@ -124,7 +124,7 @@ impl InfisicalProvider {
         let token = String::from_utf8(output.stdout)
             .map_err(|e| FnoxError::ProviderInvalidResponse {
                 provider: PROVIDER_NAME.to_string(),
-                details: format!("Invalid UTF-8 in command output: {}", e),
+                details: ProviderDetails::relayed("Invalid UTF-8 in command output", &e),
                 hint: "This is an unexpected error".to_string(),
                 url: PROVIDER_URL.to_string(),
             })?
@@ -181,7 +181,7 @@ impl InfisicalProvider {
             } else {
                 FnoxError::ProviderCliFailed {
                     provider: PROVIDER_NAME.to_string(),
-                    details: e.to_string(),
+                    details: ProviderDetails::output(&e),
                     hint: "Check that the Infisical CLI is installed and accessible".to_string(),
                     url: PROVIDER_URL.to_string(),
                 }
@@ -196,7 +196,7 @@ impl InfisicalProvider {
         let stdout =
             String::from_utf8(output.stdout).map_err(|e| FnoxError::ProviderInvalidResponse {
                 provider: PROVIDER_NAME.to_string(),
-                details: format!("Invalid UTF-8 in command output: {}", e),
+                details: ProviderDetails::relayed("Invalid UTF-8 in command output", &e),
                 hint: "The secret value contains invalid UTF-8 characters".to_string(),
                 url: PROVIDER_URL.to_string(),
             })?;
@@ -251,7 +251,10 @@ impl crate::providers::Provider for InfisicalProvider {
             serde_json::from_str::<Vec<serde_json::Value>>(&json_output).map_err(|e| {
                 FnoxError::ProviderInvalidResponse {
                     provider: PROVIDER_NAME.to_string(),
-                    details: format!("Failed to parse response for '{}': {}", value, e),
+                    details: ProviderDetails::relayed(
+                        format!("Failed to parse response for '{}'", value),
+                        &e,
+                    ),
                     hint: "The Infisical CLI returned an unexpected response format".to_string(),
                     url: PROVIDER_URL.to_string(),
                 }
@@ -272,10 +275,7 @@ impl crate::providers::Provider for InfisicalProvider {
             .and_then(|v| v.as_str())
             .ok_or_else(|| FnoxError::ProviderInvalidResponse {
                 provider: PROVIDER_NAME.to_string(),
-                details: format!(
-                    "Invalid response format for '{}' - missing secretValue field",
-                    value
-                ),
+                details: ProviderDetails::relayed("missing secretValue field for reference", value),
                 hint: "The Infisical CLI returned an unexpected response format".to_string(),
                 url: PROVIDER_URL.to_string(),
             })?;
@@ -385,7 +385,7 @@ impl crate::providers::Provider for InfisicalProvider {
                             .map(|(key, _)| {
                                 (key.clone(), Err(FnoxError::ProviderInvalidResponse {
                                     provider: PROVIDER_NAME.to_string(),
-                                    details: format!("Failed to parse batch response: {}", e),
+                                    details: ProviderDetails::relayed("Failed to parse batch response", &e),
                                     hint: "The Infisical CLI returned an unexpected response format".to_string(),
                                     url: PROVIDER_URL.to_string(),
                                 }))
@@ -499,7 +499,7 @@ fn classify_cli_error(stderr: &str, secret_ref: Option<&str>) -> FnoxError {
     if contains_any(&stderr_lower, AUTH_ERROR_PATTERNS) {
         return FnoxError::ProviderAuthFailed {
             provider: PROVIDER_NAME.to_string(),
-            details: stderr.to_string(),
+            details: ProviderDetails::output(stderr),
             hint: "Run 'infisical login' or check your INFISICAL_TOKEN".to_string(),
             url: PROVIDER_URL.to_string(),
         };
@@ -508,7 +508,7 @@ fn classify_cli_error(stderr: &str, secret_ref: Option<&str>) -> FnoxError {
     if contains_any(&stderr_lower, RESOURCE_NOT_FOUND_PATTERNS) {
         return FnoxError::ProviderApiError {
             provider: PROVIDER_NAME.to_string(),
-            details: stderr.to_string(),
+            details: ProviderDetails::output(stderr),
             hint: "Check project/environment/path settings in your Infisical provider config"
                 .to_string(),
             url: PROVIDER_URL.to_string(),
@@ -532,7 +532,7 @@ fn classify_cli_error(stderr: &str, secret_ref: Option<&str>) -> FnoxError {
 
     FnoxError::ProviderCliFailed {
         provider: PROVIDER_NAME.to_string(),
-        details: stderr.to_string(),
+        details: ProviderDetails::output(stderr),
         hint: "Check your Infisical configuration and authentication".to_string(),
         url: PROVIDER_URL.to_string(),
     }
@@ -620,7 +620,7 @@ mod tests {
     fn map_batch_error_preserves_auth_failed() {
         let error = FnoxError::ProviderAuthFailed {
             provider: PROVIDER_NAME.to_string(),
-            details: "unauthorized".to_string(),
+            details: ProviderDetails::authored("unauthorized"),
             hint: "login".to_string(),
             url: PROVIDER_URL.to_string(),
         };
@@ -675,7 +675,7 @@ mod tests {
     fn map_batch_error_clones_cli_failed_without_double_wrapping() {
         let error = FnoxError::ProviderCliFailed {
             provider: PROVIDER_NAME.to_string(),
-            details: "some error".to_string(),
+            details: ProviderDetails::authored("some error"),
             hint: "original hint".to_string(),
             url: PROVIDER_URL.to_string(),
         };
@@ -684,7 +684,7 @@ mod tests {
             error.map_batch_error("secret1", PROVIDER_NAME, "Check your config", PROVIDER_URL);
         match result {
             FnoxError::ProviderCliFailed { details, hint, .. } => {
-                assert_eq!(details, "some error");
+                assert_eq!(details, ProviderDetails::authored("some error"));
                 assert_eq!(hint, "original hint");
             }
             other => panic!("Expected ProviderCliFailed, got {:?}", other),

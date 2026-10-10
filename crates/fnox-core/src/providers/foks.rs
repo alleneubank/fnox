@@ -1,5 +1,5 @@
 use crate::env;
-use crate::error::{FnoxError, Result};
+use crate::error::{FnoxError, ProviderDetails, Result};
 use async_trait::async_trait;
 use tokio::process::Command;
 use tokio::sync::Mutex;
@@ -156,7 +156,7 @@ impl FoksProvider {
         let stdout =
             String::from_utf8(output.stdout).map_err(|e| FnoxError::ProviderInvalidResponse {
                 provider: PROVIDER_NAME.to_string(),
-                details: format!("Invalid UTF-8 in command output: {e}"),
+                details: ProviderDetails::relayed("Invalid UTF-8 in command output", &e),
                 hint: "The secret value contains invalid UTF-8 characters".to_string(),
                 url: PROVIDER_URL.to_string(),
             })?;
@@ -207,7 +207,9 @@ impl FoksProvider {
             .take()
             .ok_or_else(|| FnoxError::ProviderCliFailed {
                 provider: PROVIDER_NAME.to_string(),
-                details: "foks child process did not expose a piped stdin".to_string(),
+                details: ProviderDetails::authored(
+                    "foks child process did not expose a piped stdin",
+                ),
                 hint: "This is an internal error".to_string(),
                 url: PROVIDER_URL.to_string(),
             })?;
@@ -217,7 +219,7 @@ impl FoksProvider {
             .await
             .map_err(|e| FnoxError::ProviderCliFailed {
                 provider: PROVIDER_NAME.to_string(),
-                details: format!("Failed to write secret to foks stdin: {e}"),
+                details: ProviderDetails::relayed("Failed to write secret to foks stdin", &e),
                 hint: "This is an internal error".to_string(),
                 url: PROVIDER_URL.to_string(),
             })?;
@@ -229,7 +231,7 @@ impl FoksProvider {
             .await
             .map_err(|e| FnoxError::ProviderCliFailed {
                 provider: PROVIDER_NAME.to_string(),
-                details: format!("Failed to wait for 'foks kv put': {e}"),
+                details: ProviderDetails::relayed("Failed to wait for 'foks kv put'", &e),
                 hint: "This is an internal error".to_string(),
                 url: PROVIDER_URL.to_string(),
             })?;
@@ -305,7 +307,7 @@ impl FoksProvider {
             let stderr = String::from_utf8_lossy(&output.stderr);
             return Err(FnoxError::ProviderAuthFailed {
                 provider: PROVIDER_NAME.to_string(),
-                details: format!("foks bot use failed: {}", stderr.trim()),
+                details: ProviderDetails::relayed("foks bot use failed", stderr.trim()),
                 hint: "Check that the bot token is valid and that the host matches the FOKS server it was issued on".to_string(),
                 url: PROVIDER_URL.to_string(),
             });
@@ -329,7 +331,7 @@ fn map_spawn_error(e: std::io::Error) -> FnoxError {
     } else {
         FnoxError::ProviderCliFailed {
             provider: PROVIDER_NAME.to_string(),
-            details: e.to_string(),
+            details: ProviderDetails::output(&e),
             hint: "Check that the foks CLI is installed and on PATH".to_string(),
             url: PROVIDER_URL.to_string(),
         }
@@ -456,7 +458,7 @@ fn classify_cli_error(stderr: &str, secret_ref: Option<&str>) -> FnoxError {
     if contains_any(&stderr_lower, AUTH_ERROR_PATTERNS) {
         return FnoxError::ProviderAuthFailed {
             provider: PROVIDER_NAME.to_string(),
-            details: stderr.to_string(),
+            details: ProviderDetails::output(stderr),
             hint: "Start the FOKS agent (`foks ctl start`), sign in (`foks signup` / `foks login`), or reload your bot token (`foks bot use --host <host>`) if the user is locked".to_string(),
             url: PROVIDER_URL.to_string(),
         };
@@ -475,7 +477,7 @@ fn classify_cli_error(stderr: &str, secret_ref: Option<&str>) -> FnoxError {
 
     FnoxError::ProviderCliFailed {
         provider: PROVIDER_NAME.to_string(),
-        details: stderr.to_string(),
+        details: ProviderDetails::output(stderr),
         hint: "Check your FOKS configuration and that the agent is running".to_string(),
         url: PROVIDER_URL.to_string(),
     }
@@ -701,7 +703,7 @@ mod tests {
         let p = provider(None, None, None);
         let err = FnoxError::ProviderCliFailed {
             provider: PROVIDER_NAME.to_string(),
-            details: "kv put failed".to_string(),
+            details: ProviderDetails::authored("kv put failed"),
             hint: String::new(),
             url: PROVIDER_URL.to_string(),
         };
@@ -721,7 +723,7 @@ mod tests {
         let p = provider(None, None, None);
         let err = FnoxError::ProviderAuthFailed {
             provider: PROVIDER_NAME.to_string(),
-            details: "no logged-in user".to_string(),
+            details: ProviderDetails::authored("no logged-in user"),
             hint: String::new(),
             url: PROVIDER_URL.to_string(),
         };

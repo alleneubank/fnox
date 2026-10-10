@@ -1,4 +1,4 @@
-use crate::error::{FnoxError, Result};
+use crate::error::{FnoxError, ProviderDetails, Result};
 use async_trait::async_trait;
 use aws_sdk_secretsmanager::Client;
 use std::collections::HashMap;
@@ -33,14 +33,14 @@ where
             } else if err_str.contains("AccessDenied") || err_str.contains("UnauthorizedAccess") {
                 FnoxError::ProviderAuthFailed {
                     provider: "AWS Secrets Manager".to_string(),
-                    details: err_str,
+                    details: ProviderDetails::output(&err_str),
                     hint: "Check IAM permissions for secretsmanager:GetSecretValue".to_string(),
                     url: URL.to_string(),
                 }
             } else {
                 FnoxError::ProviderApiError {
                     provider: "AWS Secrets Manager".to_string(),
-                    details: err_str,
+                    details: ProviderDetails::output(&err_str),
                     hint: "Check AWS Secrets Manager configuration".to_string(),
                     url: URL.to_string(),
                 }
@@ -48,7 +48,7 @@ where
         }
         SdkError::TimeoutError(_) => FnoxError::ProviderApiError {
             provider: "AWS Secrets Manager".to_string(),
-            details: "Request timed out".to_string(),
+            details: ProviderDetails::authored("Request timed out"),
             hint: "Check network connectivity and AWS region endpoint".to_string(),
             url: URL.to_string(),
         },
@@ -88,14 +88,14 @@ where
                 if full_error.contains("credentials") || full_error.contains("expired") {
                     FnoxError::ProviderAuthFailed {
                         provider: "AWS Secrets Manager".to_string(),
-                        details: full_error,
+                        details: ProviderDetails::output(&full_error),
                         hint: hint.to_string(),
                         url: URL.to_string(),
                     }
                 } else {
                     FnoxError::ProviderApiError {
                         provider: "AWS Secrets Manager".to_string(),
-                        details: full_error,
+                        details: ProviderDetails::output(&full_error),
                         hint: hint.to_string(),
                         url: URL.to_string(),
                     }
@@ -103,7 +103,7 @@ where
             } else {
                 FnoxError::ProviderApiError {
                     provider: "AWS Secrets Manager".to_string(),
-                    details: format!("{:?}", dispatch_err),
+                    details: ProviderDetails::output(format!("{dispatch_err:?}")),
                     hint: "Check network connectivity".to_string(),
                     url: URL.to_string(),
                 }
@@ -111,7 +111,7 @@ where
         }
         _ => FnoxError::ProviderApiError {
             provider: "AWS Secrets Manager".to_string(),
-            details: err.to_string(),
+            details: ProviderDetails::output(err),
             hint: "Check AWS configuration".to_string(),
             url: URL.to_string(),
         },
@@ -210,7 +210,10 @@ impl AwsSecretsManagerProvider {
             .secret_string()
             .ok_or_else(|| FnoxError::ProviderInvalidResponse {
                 provider: "AWS Secrets Manager".to_string(),
-                details: format!("Secret '{}' has no string value", secret_name),
+                details: ProviderDetails::authored(format!(
+                    "Secret '{}' has no string value",
+                    secret_name
+                )),
                 hint: "Binary secrets are not supported".to_string(),
                 url: "https://fnox.jdx.dev/providers/aws-sm".to_string(),
             })
@@ -294,7 +297,7 @@ impl crate::providers::Provider for AwsSecretsManagerProvider {
                         key.clone(),
                         Err(FnoxError::ProviderAuthFailed {
                             provider: "AWS Secrets Manager".to_string(),
-                            details: e.to_string(),
+                            details: ProviderDetails::output(&e),
                             hint: "Run 'aws sso login' or check AWS credentials".to_string(),
                             url: "https://fnox.jdx.dev/providers/aws-sm".to_string(),
                         }),
@@ -358,10 +361,10 @@ impl crate::providers::Provider for AwsSecretsManagerProvider {
                                         key.clone(),
                                         Err(FnoxError::ProviderInvalidResponse {
                                             provider: "AWS Secrets Manager".to_string(),
-                                            details: format!(
+                                            details: ProviderDetails::authored(format!(
                                                 "Secret '{}' has no string value",
                                                 secret_name
-                                            ),
+                                            )),
                                             hint: "Binary secrets are not supported".to_string(),
                                             url: "https://fnox.jdx.dev/providers/aws-sm"
                                                 .to_string(),
@@ -396,9 +399,9 @@ impl crate::providers::Provider for AwsSecretsManagerProvider {
                                         key.clone(),
                                         Err(FnoxError::ProviderApiError {
                                             provider: "AWS Secrets Manager".to_string(),
-                                            details: format!(
-                                                "Failed to get '{}': {}",
-                                                lookup_name, error_msg
+                                            details: ProviderDetails::relayed(
+                                                format!("Failed to get '{}'", lookup_name),
+                                                &error_msg,
                                             ),
                                             hint:
                                                 "Check that the secret exists and you have access"

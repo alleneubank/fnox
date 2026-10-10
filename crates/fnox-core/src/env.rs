@@ -16,6 +16,19 @@ pub fn is_non_interactive() -> bool {
     NON_INTERACTIVE.load(Ordering::Acquire)
 }
 
+/// Whether provider errors may show the text a provider wrote (CLI stderr,
+/// API messages). Off by default because that text can carry secret values;
+/// `--verbose` turns it on.
+static PROVIDER_OUTPUT_SHOWN: AtomicBool = AtomicBool::new(false);
+
+pub fn set_provider_output_shown(value: bool) {
+    PROVIDER_OUTPUT_SHOWN.store(value, Ordering::Release);
+}
+
+pub fn is_provider_output_shown() -> bool {
+    PROVIDER_OUTPUT_SHOWN.load(Ordering::Acquire)
+}
+
 /// Mutex to serialize access to std::env::set_var, which is unsafe in Rust 2024 edition.
 static ENV_MUTEX: Mutex<()> = Mutex::new(());
 

@@ -1,5 +1,5 @@
 use crate::env;
-use crate::error::{FnoxError, Result};
+use crate::error::{FnoxError, ProviderDetails, Result};
 use async_trait::async_trait;
 use serde_json::json;
 use std::process::Stdio;
@@ -19,7 +19,7 @@ fn parse_secret_reference(value: &str) -> Result<(&str, &str)> {
         }
         _ => Err(FnoxError::ProviderInvalidResponse {
             provider: PROVIDER_NAME.to_string(),
-            details: format!("Invalid secret reference format: '{value}'"),
+            details: ProviderDetails::relayed("Invalid secret reference format", value),
             hint: "Expected 'secret' or 'secret/field'".to_string(),
             url: URL.to_string(),
         }),
@@ -30,17 +30,16 @@ fn is_missing_secret_error(error: &FnoxError) -> bool {
     let FnoxError::ProviderCliFailed { details, .. } = error else {
         return false;
     };
-    let details = details.to_ascii_lowercase();
-    details.contains("no data found")
-        || details.contains("no value found")
-        || details.contains("code: 404")
+    details.contains_lowercase("no data found")
+        || details.contains_lowercase("no value found")
+        || details.contains_lowercase("code: 404")
 }
 
 fn deleted_secret_version(metadata: &str) -> Result<Option<u64>> {
     let metadata: serde_json::Value =
         serde_json::from_str(metadata).map_err(|error| FnoxError::ProviderInvalidResponse {
             provider: PROVIDER_NAME.to_string(),
-            details: format!("Invalid Vault metadata response: {error}"),
+            details: ProviderDetails::relayed("Invalid Vault metadata response", &error),
             hint: "Check that the Vault CLI returned JSON metadata".to_string(),
             url: URL.to_string(),
         })?;
@@ -48,7 +47,7 @@ fn deleted_secret_version(metadata: &str) -> Result<Option<u64>> {
         .get("data")
         .ok_or_else(|| FnoxError::ProviderInvalidResponse {
             provider: PROVIDER_NAME.to_string(),
-            details: "Vault metadata response did not contain data".to_string(),
+            details: ProviderDetails::authored("Vault metadata response did not contain data"),
             hint: "Check that the Vault CLI returned KV v2 metadata".to_string(),
             url: URL.to_string(),
         })?;
@@ -57,7 +56,9 @@ fn deleted_secret_version(metadata: &str) -> Result<Option<u64>> {
         .and_then(serde_json::Value::as_u64)
         .ok_or_else(|| FnoxError::ProviderInvalidResponse {
             provider: PROVIDER_NAME.to_string(),
-            details: "Vault metadata response did not contain current_version".to_string(),
+            details: ProviderDetails::authored(
+                "Vault metadata response did not contain current_version",
+            ),
             hint: "Check that the Vault CLI returned KV v2 metadata".to_string(),
             url: URL.to_string(),
         })?;
@@ -66,7 +67,9 @@ fn deleted_secret_version(metadata: &str) -> Result<Option<u64>> {
         .and_then(|versions| versions.get(current_version.to_string()))
         .ok_or_else(|| FnoxError::ProviderInvalidResponse {
             provider: PROVIDER_NAME.to_string(),
-            details: format!("Vault metadata did not contain version {current_version}"),
+            details: ProviderDetails::authored(format!(
+                "Vault metadata did not contain version {current_version}"
+            )),
             hint: "Check that the Vault CLI returned KV v2 metadata".to_string(),
             url: URL.to_string(),
         })?;
@@ -186,7 +189,7 @@ impl HashiCorpVaultProvider {
             .await?
             .ok_or_else(|| FnoxError::ProviderAuthFailed {
                 provider: "HashiCorp Vault".to_string(),
-                details: "VAULT_TOKEN not set".to_string(),
+                details: ProviderDetails::authored("VAULT_TOKEN not set"),
                 hint: "Set VAULT_TOKEN in provider config or environment, or configure credential_command".to_string(),
                 url: URL.to_string(),
             })?;
@@ -217,7 +220,7 @@ impl HashiCorpVaultProvider {
             } else {
                 FnoxError::ProviderCliFailed {
                     provider: "HashiCorp Vault".to_string(),
-                    details: e.to_string(),
+                    details: ProviderDetails::output(&e),
                     hint: "Check that the Vault CLI is installed and accessible".to_string(),
                     url: URL.to_string(),
                 }
@@ -231,14 +234,16 @@ impl HashiCorpVaultProvider {
                     .take()
                     .ok_or_else(|| FnoxError::ProviderCliFailed {
                         provider: PROVIDER_NAME.to_string(),
-                        details: "Vault child process did not expose piped stdin".to_string(),
+                        details: ProviderDetails::authored(
+                            "Vault child process did not expose piped stdin",
+                        ),
                         hint: "This is an internal error".to_string(),
                         url: URL.to_string(),
                     })?;
             child_stdin.write_all(input.as_bytes()).await.map_err(|e| {
                 FnoxError::ProviderCliFailed {
                     provider: PROVIDER_NAME.to_string(),
-                    details: format!("Failed to write secret to Vault stdin: {e}"),
+                    details: ProviderDetails::relayed("Failed to write secret to Vault stdin", &e),
                     hint: "This is an internal error".to_string(),
                     url: URL.to_string(),
                 }
@@ -251,7 +256,7 @@ impl HashiCorpVaultProvider {
             .await
             .map_err(|e| FnoxError::ProviderCliFailed {
                 provider: PROVIDER_NAME.to_string(),
-                details: format!("Failed to wait for Vault command: {e}"),
+                details: ProviderDetails::relayed("Failed to wait for Vault command", &e),
                 hint: "Check your Vault configuration".to_string(),
                 url: URL.to_string(),
             })?;
@@ -268,14 +273,14 @@ impl HashiCorpVaultProvider {
             {
                 return Err(FnoxError::ProviderAuthFailed {
                     provider: "HashiCorp Vault".to_string(),
-                    details: stderr_str.to_string(),
+                    details: ProviderDetails::output(stderr_str),
                     hint: "Check your Vault token has the required permissions".to_string(),
                     url: URL.to_string(),
                 });
             }
             return Err(FnoxError::ProviderCliFailed {
                 provider: "HashiCorp Vault".to_string(),
-                details: stderr_str.to_string(),
+                details: ProviderDetails::output(stderr_str),
                 hint: "Check your Vault configuration".to_string(),
                 url: URL.to_string(),
             });
@@ -284,7 +289,7 @@ impl HashiCorpVaultProvider {
         let stdout =
             String::from_utf8(output.stdout).map_err(|e| FnoxError::ProviderInvalidResponse {
                 provider: "HashiCorp Vault".to_string(),
-                details: format!("Invalid UTF-8 in command output: {}", e),
+                details: ProviderDetails::relayed("Invalid UTF-8 in command output", &e),
                 hint: "The secret value contains invalid UTF-8 characters".to_string(),
                 url: URL.to_string(),
             })?;
@@ -462,7 +467,7 @@ mod tests {
     fn recognizes_missing_secret_errors() {
         let error = FnoxError::ProviderCliFailed {
             provider: PROVIDER_NAME.to_string(),
-            details: "No data found at secret/data/database".to_string(),
+            details: ProviderDetails::authored("No data found at secret/data/database"),
             hint: String::new(),
             url: URL.to_string(),
         };
@@ -470,7 +475,7 @@ mod tests {
 
         let error = FnoxError::ProviderCliFailed {
             provider: PROVIDER_NAME.to_string(),
-            details: "Error making API request. Code: 404. Errors:".to_string(),
+            details: ProviderDetails::authored("Error making API request. Code: 404. Errors:"),
             hint: String::new(),
             url: URL.to_string(),
         };
@@ -478,7 +483,7 @@ mod tests {
 
         let error = FnoxError::ProviderCliFailed {
             provider: PROVIDER_NAME.to_string(),
-            details: "permission denied".to_string(),
+            details: ProviderDetails::authored("permission denied"),
             hint: String::new(),
             url: URL.to_string(),
         };

@@ -47,6 +47,7 @@ async fn run(argv: Vec<std::ffi::OsString>) -> miette::Result<()> {
     // contributes, what was left off does not, and nothing here copies fields by hand.
     settings::Settings::set_cli_layer(settings_layer);
     fnox::env::set_non_interactive(cli.non_interactive);
+    fnox::env::set_provider_output_shown(cli.verbose);
 
     // Handle --no-color flag
     if cli.no_color {

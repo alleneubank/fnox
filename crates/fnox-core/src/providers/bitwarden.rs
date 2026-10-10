@@ -1,5 +1,5 @@
 use crate::env;
-use crate::error::{FnoxError, Result};
+use crate::error::{FnoxError, ProviderDetails, Result};
 use async_trait::async_trait;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -126,7 +126,7 @@ impl BitwardenProvider {
             );
             return Err(FnoxError::ProviderAuthFailed {
                 provider: "Bitwarden".to_string(),
-                details: "Session token not found".to_string(),
+                details: ProviderDetails::authored("Session token not found"),
                 hint: "Set BW_SESSION=$(bw unlock --raw) or FNOX_BW_SESSION".to_string(),
                 url: "https://fnox.jdx.dev/providers/bitwarden".to_string(),
             });
@@ -226,7 +226,7 @@ impl BitwardenProvider {
             } else {
                 FnoxError::ProviderCliFailed {
                     provider: "Bitwarden".to_string(),
-                    details: e.to_string(),
+                    details: ProviderDetails::output(&e),
                     hint: format!("Check that {} is installed and accessible", cli),
                     url: "https://fnox.jdx.dev/providers/bitwarden".to_string(),
                 }
@@ -247,7 +247,7 @@ impl BitwardenProvider {
             {
                 return Err(FnoxError::ProviderAuthFailed {
                     provider: "Bitwarden".to_string(),
-                    details: stderr_str.to_string(),
+                    details: ProviderDetails::output(stderr_str),
                     hint: format!("Run '{cli} unlock' and set BW_SESSION or FNOX_BW_SESSION"),
                     url: "https://fnox.jdx.dev/providers/bitwarden".to_string(),
                 });
@@ -255,7 +255,7 @@ impl BitwardenProvider {
 
             return Err(FnoxError::ProviderCliFailed {
                 provider: "Bitwarden".to_string(),
-                details: stderr_str.to_string(),
+                details: ProviderDetails::output(stderr_str),
                 hint: "Check your Bitwarden configuration".to_string(),
                 url: "https://fnox.jdx.dev/providers/bitwarden".to_string(),
             });
@@ -264,7 +264,7 @@ impl BitwardenProvider {
         let stdout =
             String::from_utf8(output.stdout).map_err(|e| FnoxError::ProviderInvalidResponse {
                 provider: "Bitwarden".to_string(),
-                details: format!("Invalid UTF-8: {}", e),
+                details: ProviderDetails::relayed("Invalid UTF-8", &e),
                 hint: "The secret value contains invalid UTF-8 characters".to_string(),
                 url: "https://fnox.jdx.dev/providers/bitwarden".to_string(),
             })?;
@@ -281,7 +281,10 @@ impl BitwardenProvider {
         let item: BitwardenItem =
             serde_json::from_str(json).map_err(|e| FnoxError::ProviderInvalidResponse {
                 provider: "Bitwarden".to_string(),
-                details: format!("Failed to parse item '{}': {}", item_name, e),
+                details: ProviderDetails::relayed(
+                    format!("Failed to parse item '{}'", item_name),
+                    &e,
+                ),
                 hint: "Check that the Bitwarden CLI returned a valid item".to_string(),
                 url: "https://fnox.jdx.dev/providers/bitwarden".to_string(),
             })?;
@@ -292,10 +295,10 @@ impl BitwardenProvider {
             .find(|field| field.name.as_deref() == Some(field_name))
             .ok_or_else(|| FnoxError::ProviderInvalidResponse {
                 provider: "Bitwarden".to_string(),
-                details: format!(
+                details: ProviderDetails::authored(format!(
                     "Custom field '{}' not found in item '{}'",
                     field_name, item_name
-                ),
+                )),
                 hint: "Check the custom field name and capitalization".to_string(),
                 url: "https://fnox.jdx.dev/providers/bitwarden".to_string(),
             })?;
@@ -304,10 +307,10 @@ impl BitwardenProvider {
             .value
             .ok_or_else(|| FnoxError::ProviderInvalidResponse {
                 provider: "Bitwarden".to_string(),
-                details: format!(
+                details: ProviderDetails::authored(format!(
                     "Custom field '{}' in item '{}' has no value",
                     field_name, item_name
-                ),
+                )),
                 hint: "Set a value for the custom field in Bitwarden".to_string(),
                 url: "https://fnox.jdx.dev/providers/bitwarden".to_string(),
             })

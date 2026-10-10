@@ -1,4 +1,4 @@
-use crate::error::{FnoxError, Result};
+use crate::error::{FnoxError, ProviderDetails, Result};
 use crate::lease_backends::{Lease, LeaseBackend};
 use async_trait::async_trait;
 use indexmap::IndexMap;
@@ -100,7 +100,7 @@ impl CloudflareBackend {
             .or_else(|_| std::env::var("CF_API_TOKEN"))
             .map_err(|_| FnoxError::ProviderAuthFailed {
                 provider: "Cloudflare".to_string(),
-                details: "No parent API token found".to_string(),
+                details: ProviderDetails::authored("No parent API token found"),
                 hint: "Set CLOUDFLARE_API_TOKEN or CF_API_TOKEN with a token that has 'API Tokens: Edit' permission".to_string(),
                 url: URL.to_string(),
             })
@@ -176,7 +176,7 @@ impl CloudflareBackend {
             .await
             .map_err(|e| FnoxError::ProviderApiError {
                 provider: "Cloudflare".to_string(),
-                details: e.to_string(),
+                details: ProviderDetails::output(&e),
                 hint: format!("Failed to {action}"),
                 url: URL.to_string(),
             })?;
@@ -188,7 +188,7 @@ impl CloudflareBackend {
                 .await
                 .map_err(|e| FnoxError::ProviderInvalidResponse {
                     provider: "Cloudflare".to_string(),
-                    details: e.to_string(),
+                    details: ProviderDetails::output(&e),
                     hint: format!("Unexpected response while trying to {action}"),
                     url: URL.to_string(),
                 })?;
@@ -209,7 +209,7 @@ impl CloudflareBackend {
             if status.as_u16() == 401 || status.as_u16() == 403 {
                 return Err(FnoxError::ProviderAuthFailed {
                     provider: "Cloudflare".to_string(),
-                    details: errors,
+                    details: ProviderDetails::output(&errors),
                     hint:
                         "Check that your parent API token is valid and has sufficient permissions"
                             .to_string(),
@@ -218,7 +218,7 @@ impl CloudflareBackend {
             }
             return Err(FnoxError::ProviderApiError {
                 provider: "Cloudflare".to_string(),
-                details: errors,
+                details: ProviderDetails::output(&errors),
                 hint: format!("Failed to {action}"),
                 url: URL.to_string(),
             });
@@ -248,7 +248,7 @@ impl CloudflareBackend {
         let token_id = verify_resp["result"]["id"].as_str().ok_or_else(|| {
             FnoxError::ProviderInvalidResponse {
                 provider: "Cloudflare".to_string(),
-                details: "Verify response missing 'result.id'".to_string(),
+                details: ProviderDetails::authored("Verify response missing 'result.id'"),
                 hint: "Check that the parent token is valid".to_string(),
                 url: URL.to_string(),
             }
@@ -267,7 +267,9 @@ impl CloudflareBackend {
             .as_array()
             .ok_or_else(|| FnoxError::ProviderInvalidResponse {
                 provider: "Cloudflare".to_string(),
-                details: "Token details response missing 'result.policies'".to_string(),
+                details: ProviderDetails::authored(
+                    "Token details response missing 'result.policies'",
+                ),
                 hint: "Check that the parent token is valid and accessible".to_string(),
                 url: URL.to_string(),
             })?;
@@ -365,7 +367,7 @@ impl LeaseBackend for CloudflareBackend {
             .await
             .map_err(|e| FnoxError::ProviderApiError {
                 provider: "Cloudflare".to_string(),
-                details: e.to_string(),
+                details: ProviderDetails::output(&e),
                 hint: "Failed to connect to Cloudflare API".to_string(),
                 url: URL.to_string(),
             })?;
@@ -377,7 +379,7 @@ impl LeaseBackend for CloudflareBackend {
                 .await
                 .map_err(|e| FnoxError::ProviderInvalidResponse {
                     provider: "Cloudflare".to_string(),
-                    details: e.to_string(),
+                    details: ProviderDetails::output(&e),
                     hint: "Unexpected response from Cloudflare API".to_string(),
                     url: URL.to_string(),
                 })?;
@@ -398,7 +400,7 @@ impl LeaseBackend for CloudflareBackend {
             if status.as_u16() == 401 || status.as_u16() == 403 {
                 return Err(FnoxError::ProviderAuthFailed {
                     provider: "Cloudflare".to_string(),
-                    details: errors,
+                    details: ProviderDetails::output(&errors),
                     hint: "Check that your parent API token has 'API Tokens: Edit' permission"
                         .to_string(),
                     url: URL.to_string(),
@@ -406,7 +408,7 @@ impl LeaseBackend for CloudflareBackend {
             }
             return Err(FnoxError::ProviderApiError {
                 provider: "Cloudflare".to_string(),
-                details: errors,
+                details: ProviderDetails::output(&errors),
                 hint: "Check policies and account_id configuration".to_string(),
                 url: URL.to_string(),
             });
@@ -418,7 +420,7 @@ impl LeaseBackend for CloudflareBackend {
                 .as_str()
                 .ok_or_else(|| FnoxError::ProviderInvalidResponse {
                     provider: "Cloudflare".to_string(),
-                    details: "Response missing 'result.value' field".to_string(),
+                    details: ProviderDetails::authored("Response missing 'result.value' field"),
                     hint: "Unexpected response from Cloudflare API".to_string(),
                     url: URL.to_string(),
                 })?;
@@ -427,7 +429,7 @@ impl LeaseBackend for CloudflareBackend {
             .as_str()
             .ok_or_else(|| FnoxError::ProviderInvalidResponse {
                 provider: "Cloudflare".to_string(),
-                details: "Response missing 'result.id' field".to_string(),
+                details: ProviderDetails::authored("Response missing 'result.id' field"),
                 hint: "Unexpected response from Cloudflare API".to_string(),
                 url: URL.to_string(),
             })?;
@@ -461,7 +463,7 @@ impl LeaseBackend for CloudflareBackend {
             .await
             .map_err(|e| FnoxError::ProviderApiError {
                 provider: "Cloudflare".to_string(),
-                details: e.to_string(),
+                details: ProviderDetails::output(&e),
                 hint: "Failed to revoke Cloudflare API token".to_string(),
                 url: URL.to_string(),
             })?;
@@ -472,7 +474,7 @@ impl LeaseBackend for CloudflareBackend {
             if status.as_u16() == 401 || status.as_u16() == 403 {
                 return Err(FnoxError::ProviderAuthFailed {
                     provider: "Cloudflare".to_string(),
-                    details: body_text,
+                    details: ProviderDetails::output(&body_text),
                     hint: "Check that your parent API token has 'API Tokens: Edit' permission"
                         .to_string(),
                     url: URL.to_string(),
@@ -482,7 +484,7 @@ impl LeaseBackend for CloudflareBackend {
             if status.as_u16() != 404 {
                 return Err(FnoxError::ProviderApiError {
                     provider: "Cloudflare".to_string(),
-                    details: format!("HTTP {}: {}", status, body_text),
+                    details: ProviderDetails::relayed(format!("HTTP {}", status), &body_text),
                     hint: "Failed to revoke Cloudflare API token".to_string(),
                     url: URL.to_string(),
                 });

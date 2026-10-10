@@ -1,4 +1,4 @@
-use crate::error::{FnoxError, Result};
+use crate::error::{FnoxError, ProviderDetails, Result};
 use crate::providers::ProviderCapability;
 use async_trait::async_trait;
 use tokio::process::Command;
@@ -71,7 +71,7 @@ impl PasswordStoreProvider {
             } else {
                 FnoxError::ProviderCliFailed {
                     provider: "password-store".to_string(),
-                    details: e.to_string(),
+                    details: ProviderDetails::output(&e),
                     hint: "Check that password-store is installed and accessible".to_string(),
                     url: "https://fnox.jdx.dev/providers/password-store".to_string(),
                 }
@@ -92,14 +92,14 @@ impl PasswordStoreProvider {
             if stderr_str.contains("gpg") || stderr_str.contains("decrypt") {
                 return Err(FnoxError::ProviderAuthFailed {
                     provider: "password-store".to_string(),
-                    details: stderr_str.to_string(),
+                    details: ProviderDetails::output(stderr_str),
                     hint: "Check that your GPG key is available and unlocked".to_string(),
                     url: "https://fnox.jdx.dev/providers/password-store".to_string(),
                 });
             }
             return Err(FnoxError::ProviderCliFailed {
                 provider: "password-store".to_string(),
-                details: stderr_str.to_string(),
+                details: ProviderDetails::output(stderr_str),
                 hint: "Check your password-store configuration".to_string(),
                 url: "https://fnox.jdx.dev/providers/password-store".to_string(),
             });
@@ -108,7 +108,7 @@ impl PasswordStoreProvider {
         let stdout =
             String::from_utf8(output.stdout).map_err(|e| FnoxError::ProviderInvalidResponse {
                 provider: "password-store".to_string(),
-                details: format!("Invalid UTF-8 in command output: {}", e),
+                details: ProviderDetails::relayed("Invalid UTF-8 in command output", &e),
                 hint: "The secret value contains invalid UTF-8 characters".to_string(),
                 url: "https://fnox.jdx.dev/providers/password-store".to_string(),
             })?;
@@ -161,7 +161,7 @@ impl crate::providers::Provider for PasswordStoreProvider {
             } else {
                 FnoxError::ProviderCliFailed {
                     provider: "password-store".to_string(),
-                    details: format!("Failed to spawn 'pass insert': {}", e),
+                    details: ProviderDetails::relayed("Failed to spawn 'pass insert'", &e),
                     hint: "Check that password-store is installed and accessible".to_string(),
                     url: "https://fnox.jdx.dev/providers/password-store".to_string(),
                 }
@@ -177,7 +177,7 @@ impl crate::providers::Provider for PasswordStoreProvider {
                 .await
                 .map_err(|e| FnoxError::ProviderCliFailed {
                     provider: "password-store".to_string(),
-                    details: format!("Failed to write to stdin: {}", e),
+                    details: ProviderDetails::relayed("Failed to write to stdin", &e),
                     hint: "This is an internal error".to_string(),
                     url: "https://fnox.jdx.dev/providers/password-store".to_string(),
                 })?;
@@ -189,7 +189,7 @@ impl crate::providers::Provider for PasswordStoreProvider {
             .await
             .map_err(|e| FnoxError::ProviderCliFailed {
                 provider: "password-store".to_string(),
-                details: format!("Failed to wait for command: {}", e),
+                details: ProviderDetails::relayed("Failed to wait for command", &e),
                 hint: "This is an internal error".to_string(),
                 url: "https://fnox.jdx.dev/providers/password-store".to_string(),
             })?;
@@ -200,14 +200,14 @@ impl crate::providers::Provider for PasswordStoreProvider {
             if stderr_str.contains("gpg") || stderr_str.contains("encrypt") {
                 return Err(FnoxError::ProviderAuthFailed {
                     provider: "password-store".to_string(),
-                    details: stderr_str.to_string(),
+                    details: ProviderDetails::output(stderr_str),
                     hint: "Check that your GPG key is available".to_string(),
                     url: "https://fnox.jdx.dev/providers/password-store".to_string(),
                 });
             }
             return Err(FnoxError::ProviderCliFailed {
                 provider: "password-store".to_string(),
-                details: stderr_str.to_string(),
+                details: ProviderDetails::output(stderr_str),
                 hint: "Check your password-store configuration".to_string(),
                 url: "https://fnox.jdx.dev/providers/password-store".to_string(),
             });

@@ -1,4 +1,4 @@
-use crate::error::{FnoxError, Result};
+use crate::error::{FnoxError, ProviderDetails, Result};
 use async_trait::async_trait;
 use keyring_core::Entry;
 use std::collections::HashMap;
@@ -36,15 +36,18 @@ impl KeychainProvider {
             // call never reaches `get_password`/`set_password`.
             keyring_core::Error::NoDefaultStore => FnoxError::ProviderAuthFailed {
                 provider: "Keychain".to_string(),
-                details: e.to_string(),
+                details: ProviderDetails::output(&e),
                 hint: platform_backend_hint().to_string(),
                 url: "https://fnox.jdx.dev/providers/keychain".to_string(),
             },
             _ => FnoxError::ProviderApiError {
                 provider: "Keychain".to_string(),
-                details: format!(
-                    "Failed to create entry for service '{}', key '{}': {}",
-                    self.service, full_key, e
+                details: ProviderDetails::relayed(
+                    format!(
+                        "Failed to create entry for service '{}', key '{}'",
+                        self.service, full_key
+                    ),
+                    &e,
                 ),
                 hint: "Check that the keychain is accessible".to_string(),
                 url: "https://fnox.jdx.dev/providers/keychain".to_string(),
@@ -78,9 +81,12 @@ impl KeychainProvider {
             .await?
             .map_err(|e| FnoxError::ProviderApiError {
                 provider: "Keychain".to_string(),
-                details: format!(
-                    "Failed to store secret '{}' (service: '{}'): {}",
-                    set_full_key, set_service, e
+                details: ProviderDetails::relayed(
+                    format!(
+                        "Failed to store secret '{}' (service: '{}')",
+                        set_full_key, set_service
+                    ),
+                    &e,
                 ),
                 hint: "Check that the keychain is accessible and writable".to_string(),
                 url: "https://fnox.jdx.dev/providers/keychain".to_string(),
@@ -126,13 +132,13 @@ impl crate::providers::Provider for KeychainProvider {
                 },
                 keyring_core::Error::NoStorageAccess(_) => FnoxError::ProviderAuthFailed {
                     provider: "Keychain".to_string(),
-                    details: e.to_string(),
+                    details: ProviderDetails::output(&e),
                     hint: "Check that the keychain is unlocked and accessible".to_string(),
                     url: "https://fnox.jdx.dev/providers/keychain".to_string(),
                 },
                 _ => FnoxError::ProviderApiError {
                     provider: "Keychain".to_string(),
-                    details: e.to_string(),
+                    details: ProviderDetails::output(&e),
                     hint: format!(
                         "Failed to get secret from keychain (service: '{}')",
                         service
@@ -179,7 +185,10 @@ impl crate::providers::Provider for KeychainProvider {
         .await?
         .map_err(|e: keyring_core::Error| FnoxError::ProviderAuthFailed {
             provider: "Keychain".to_string(),
-            details: format!("Failed to access keychain (service: '{service}'): {e}"),
+            details: ProviderDetails::relayed(
+                format!("Failed to access keychain (service: '{service}')"),
+                &e,
+            ),
             hint: "Check that you have permission to access the OS keychain".to_string(),
             url: "https://fnox.jdx.dev/providers/keychain".to_string(),
         })
@@ -206,7 +215,7 @@ where
         .await
         .map_err(|e| FnoxError::ProviderApiError {
             provider: "Keychain".to_string(),
-            details: format!("Keychain task failed to complete: {e}"),
+            details: ProviderDetails::relayed("Keychain task failed to complete", &e),
             hint: "This is a bug; please report it".to_string(),
             url: "https://fnox.jdx.dev/providers/keychain".to_string(),
         })

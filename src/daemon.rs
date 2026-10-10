@@ -584,6 +584,9 @@ async fn start_background_for_context(
 }
 
 pub async fn serve(cli: &Cli, idle_timeout: Duration) -> Result<()> {
+    // Errors rendered here are sent to clients that may not have asked for
+    // provider output, whatever flags started this process.
+    crate::env::set_provider_output_shown(false);
     #[cfg(not(unix))]
     {
         let _ = cli;
@@ -718,6 +721,11 @@ fn should_use_daemon(ctx: &ResolveContext, config: &Config) -> bool {
         return false;
     }
     if ctx.no_daemon {
+        return false;
+    }
+    // The daemon renders errors in its own process, where provider output stays
+    // hidden; resolve in-process so `--verbose` can show it.
+    if crate::env::is_provider_output_shown() {
         return false;
     }
     match std::env::var("FNOX_DAEMON").ok().as_deref() {

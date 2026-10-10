@@ -1,4 +1,4 @@
-use crate::error::{FnoxError, Result};
+use crate::error::{FnoxError, ProviderDetails, Result};
 use crate::lease_backends::{Lease, LeaseBackend};
 use async_trait::async_trait;
 use indexmap::IndexMap;
@@ -113,7 +113,7 @@ impl GitHubOauthBackend {
         Entry::new(&self.keyring_service, &self.cache_key()).map_err(|e| {
             FnoxError::ProviderApiError {
                 provider: PROVIDER.to_string(),
-                details: format!("Failed to create keyring entry: {e}"),
+                details: ProviderDetails::relayed("Failed to create keyring entry", &e),
                 hint: "Check that the OS keyring is available, or set keyring_cache = false"
                     .to_string(),
                 url: URL.to_string(),
@@ -156,10 +156,17 @@ impl GitHubOauthBackend {
             ])
             .send()
             .await
-            .map_err(|e| api_error(format!("Failed to request device code: {e}")))?
+            .map_err(|e| {
+                api_error(ProviderDetails::relayed(
+                    "Failed to request device code",
+                    &e,
+                ))
+            })?
             .json::<DeviceCodeResponse>()
             .await
-            .map_err(|e| invalid_response(format!("Invalid device code response: {e}")))
+            .map_err(|e| {
+                invalid_response(ProviderDetails::relayed("Invalid device code response", &e))
+            })
     }
 
     fn device_auth_base(&self) -> &str {
@@ -176,7 +183,9 @@ impl GitHubOauthBackend {
 
         loop {
             if chrono::Utc::now() >= deadline {
-                return Err(auth_failed("Device authorization expired".to_string()));
+                return Err(auth_failed(ProviderDetails::authored(
+                    "Device authorization expired",
+                )));
             }
 
             let response = crate::http::http_client()
@@ -189,10 +198,14 @@ impl GitHubOauthBackend {
                 ])
                 .send()
                 .await
-                .map_err(|e| api_error(format!("Failed to poll access token: {e}")))?
+                .map_err(|e| {
+                    api_error(ProviderDetails::relayed("Failed to poll access token", &e))
+                })?
                 .json::<TokenResponse>()
                 .await
-                .map_err(|e| invalid_response(format!("Invalid token response: {e}")))?;
+                .map_err(|e| {
+                    invalid_response(ProviderDetails::relayed("Invalid token response", &e))
+                })?;
 
             match response.error.as_deref() {
                 None => return Ok(response),
@@ -206,16 +219,20 @@ impl GitHubOauthBackend {
                     continue;
                 }
                 Some("expired_token") => {
-                    return Err(auth_failed("Device authorization expired".to_string()));
+                    return Err(auth_failed(ProviderDetails::authored(
+                        "Device authorization expired",
+                    )));
                 }
                 Some("access_denied") => {
-                    return Err(auth_failed("Device authorization was denied".to_string()));
+                    return Err(auth_failed(ProviderDetails::authored(
+                        "Device authorization was denied",
+                    )));
                 }
                 Some(error) => {
                     let details = response
                         .error_description
                         .unwrap_or_else(|| error.to_string());
-                    return Err(api_error(details));
+                    return Err(api_error(ProviderDetails::output(&details)));
                 }
             }
         }
@@ -243,10 +260,17 @@ impl GitHubOauthBackend {
             ])
             .send()
             .await
-            .map_err(|e| api_error(format!("Failed to refresh access token: {e}")))?
+            .map_err(|e| {
+                api_error(ProviderDetails::relayed(
+                    "Failed to refresh access token",
+                    &e,
+                ))
+            })?
             .json::<TokenResponse>()
             .await
-            .map_err(|e| invalid_response(format!("Invalid refresh response: {e}")))?;
+            .map_err(|e| {
+                invalid_response(ProviderDetails::relayed("Invalid refresh response", &e))
+            })?;
 
         if let Some(err) = &response.error {
             tracing::debug!(
@@ -272,7 +296,9 @@ impl GitHubOauthBackend {
         login: Option<String>,
     ) -> Result<CachedToken> {
         let access_token = response.access_token.ok_or_else(|| {
-            invalid_response("Token response missing 'access_token' field".to_string())
+            invalid_response(ProviderDetails::authored(
+                "Token response missing 'access_token' field",
+            ))
         })?;
         let now = chrono::Utc::now();
         let expires_at =
@@ -303,16 +329,22 @@ impl GitHubOauthBackend {
             .bearer_auth(access_token)
             .send()
             .await
-            .map_err(|e| api_error(format!("Failed to fetch authenticated GitHub user: {e}")))?
+            .map_err(|e| {
+                api_error(ProviderDetails::relayed(
+                    "Failed to fetch authenticated GitHub user",
+                    &e,
+                ))
+            })?
             .json::<UserResponse>()
             .await
-            .map_err(|e| invalid_response(format!("Invalid GitHub user response: {e}")))?;
+            .map_err(|e| {
+                invalid_response(ProviderDetails::relayed("Invalid GitHub user response", &e))
+            })?;
         response.login.ok_or_else(|| {
-            invalid_response(
-                response
-                    .message
-                    .unwrap_or_else(|| "Response missing 'login' field".to_string()),
-            )
+            invalid_response(match response.message {
+                Some(message) => ProviderDetails::output(&message),
+                None => ProviderDetails::authored("Response missing 'login' field"),
+            })
         })
     }
 
@@ -378,7 +410,7 @@ fn default_poll_interval() -> u64 {
     5
 }
 
-fn invalid_response(details: String) -> FnoxError {
+fn invalid_response(details: ProviderDetails) -> FnoxError {
     FnoxError::ProviderInvalidResponse {
         provider: PROVIDER.to_string(),
         details,
@@ -387,7 +419,7 @@ fn invalid_response(details: String) -> FnoxError {
     }
 }
 
-fn api_error(details: String) -> FnoxError {
+fn api_error(details: ProviderDetails) -> FnoxError {
     FnoxError::ProviderApiError {
         provider: PROVIDER.to_string(),
         details,
@@ -396,7 +428,7 @@ fn api_error(details: String) -> FnoxError {
     }
 }
 
-fn auth_failed(details: String) -> FnoxError {
+fn auth_failed(details: ProviderDetails) -> FnoxError {
     FnoxError::ProviderAuthFailed {
         provider: PROVIDER.to_string(),
         details,
@@ -408,7 +440,7 @@ fn auth_failed(details: String) -> FnoxError {
 fn interactive_auth_required() -> FnoxError {
     FnoxError::ProviderAuthFailed {
         provider: PROVIDER.to_string(),
-        details: "interactive auth required for GitHub OAuth device authorization".to_string(),
+        details: ProviderDetails::authored("interactive auth required for GitHub OAuth device authorization"),
         hint: "Run 'fnox lease create <lease-name>' from an interactive terminal to authorize GitHub, then retry in non-interactive mode".to_string(),
         url: URL.to_string(),
     }

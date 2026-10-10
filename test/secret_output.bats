@@ -105,6 +105,49 @@ EOF
 	[[ $stderr == *"command failed"* ]]
 }
 
+failing_pass_config() {
+	fake_pass <<'EOF'
+#!/bin/sh
+echo 'Error: could not read fake-secret-value' >&2
+exit 1
+EOF
+	cat >fnox.toml <<EOF
+root = true
+
+[daemon]
+enabled = $1
+
+[providers.pass]
+type = "password-store"
+
+[secrets]
+TOKEN = { provider = "pass", value = "token", if_missing = "error" }
+EOF
+}
+
+@test "get, exec and export hide provider output when the provider fails" {
+	for daemon in false true; do
+		failing_pass_config "$daemon"
+		for cmd in "get TOKEN" "exec -- true" "export"; do
+			# shellcheck disable=SC2086
+			run --separate-stderr "$FNOX_BIN" --non-interactive $cmd
+			assert_failure
+			[[ $stderr == *"hidden"* ]]
+			[[ $output != *"fake-secret-value"* ]]
+			[[ $stderr != *"fake-secret-value"* ]]
+		done
+	done
+}
+
+@test "verbose get shows provider output when the provider fails" {
+	failing_pass_config true
+
+	run --separate-stderr "$FNOX_BIN" --non-interactive --verbose get TOKEN
+	assert_failure
+	assert_output ""
+	[[ $stderr == *"could not read fake-secret-value"* ]]
+}
+
 @test "check KEY reports resolvability without printing the value" {
 	fake_pass <<'EOF'
 #!/bin/sh

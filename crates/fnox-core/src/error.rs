@@ -5,6 +5,89 @@ use std::sync::Arc;
 use thiserror::Error;
 
 /// A single validation issue (used with #[related] for multiple error reporting)
+/// The detail text of a provider error, split by who wrote it.
+///
+/// `summary` is text fnox wrote and is always shown. `relayed` is text fnox did
+/// not write (a CLI's stderr, an HTTP body, an SDK or parser message, a secret
+/// reference from config), which can contain secret values; it is shown only
+/// when `--verbose` enabled it. `Debug` withholds it as well.
+#[derive(Clone, Default, PartialEq, Eq)]
+pub struct ProviderDetails(Box<DetailParts>);
+
+#[derive(Clone, Default, PartialEq, Eq)]
+struct DetailParts {
+    summary: String,
+    relayed: Option<String>,
+}
+
+impl ProviderDetails {
+    /// Detail text fnox wrote itself, containing no provider output or config values.
+    pub fn authored(summary: impl Into<String>) -> Self {
+        Self(Box::new(DetailParts {
+            summary: summary.into(),
+            relayed: None,
+        }))
+    }
+
+    /// A fnox-written summary followed by text the provider wrote.
+    pub fn relayed(summary: impl Into<String>, relayed: impl std::fmt::Display) -> Self {
+        Self(Box::new(DetailParts {
+            summary: summary.into(),
+            relayed: Some(relayed.to_string()),
+        }))
+    }
+
+    /// Text the provider wrote, with no fnox-written summary.
+    pub fn output(relayed: impl std::fmt::Display) -> Self {
+        Self::relayed(String::new(), relayed)
+    }
+
+    /// Whether either part contains `needle`, for classifying failures.
+    pub fn contains(&self, needle: &str) -> bool {
+        self.parts().any(|part| part.contains(needle))
+    }
+
+    /// Case-insensitive [`Self::contains`]; `needle` must be lowercase.
+    pub fn contains_lowercase(&self, needle: &str) -> bool {
+        self.parts()
+            .any(|part| part.to_lowercase().contains(needle))
+    }
+
+    fn parts(&self) -> impl Iterator<Item = &str> {
+        std::iter::once(self.0.summary.as_str()).chain(self.0.relayed.as_deref())
+    }
+}
+
+impl std::fmt::Display for ProviderDetails {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if !self.0.summary.is_empty() {
+            write!(f, ": {}", self.0.summary)?;
+        }
+        match self.0.relayed.as_deref() {
+            None | Some("") => Ok(()),
+            Some(relayed) if crate::env::is_provider_output_shown() => write!(f, ": {relayed}"),
+            Some(_) => f.write_str(" (provider output hidden; rerun with --verbose to show it)"),
+        }
+    }
+}
+
+impl std::fmt::Debug for ProviderDetails {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ProviderDetails")
+            .field("summary", &self.0.summary)
+            .field(
+                "relayed",
+                &self
+                    .0
+                    .relayed
+                    .as_ref()
+                    .map(|r| format!("<{} bytes>", r.len())),
+            )
+            .finish()
+    }
+}
+
+/// A single validation issue (used with #[related] for multiple error reporting)
 #[derive(Error, Debug, Diagnostic)]
 #[error("{message}")]
 #[diagnostic(code(fnox::config::validation_issue))]
@@ -278,20 +361,20 @@ pub enum FnoxError {
         url: String,
     },
 
-    #[error("{provider}: command failed: {details}")]
+    #[error("{provider}: command failed{details}")]
     #[diagnostic(code(fnox::provider::cli_failed), help("{hint}"), url("{url}"))]
     ProviderCliFailed {
         provider: String,
-        details: String,
+        details: ProviderDetails,
         hint: String,
         url: String,
     },
 
-    #[error("{provider}: authentication failed: {details}")]
+    #[error("{provider}: authentication failed{details}")]
     #[diagnostic(code(fnox::provider::auth_failed), help("{hint}"), url("{url}"))]
     ProviderAuthFailed {
         provider: String,
-        details: String,
+        details: ProviderDetails,
         hint: String,
         url: String,
     },
@@ -312,20 +395,20 @@ pub enum FnoxError {
         url: String,
     },
 
-    #[error("{provider}: invalid response: {details}")]
+    #[error("{provider}: invalid response{details}")]
     #[diagnostic(code(fnox::provider::invalid_response), help("{hint}"), url("{url}"))]
     ProviderInvalidResponse {
         provider: String,
-        details: String,
+        details: ProviderDetails,
         hint: String,
         url: String,
     },
 
-    #[error("{provider}: API error: {details}")]
+    #[error("{provider}: API error{details}")]
     #[diagnostic(code(fnox::provider::api_error), help("{hint}"), url("{url}"))]
     ProviderApiError {
         provider: String,
-        details: String,
+        details: ProviderDetails,
         hint: String,
         url: String,
     },
@@ -736,7 +819,7 @@ impl FnoxError {
         matches!(self, FnoxError::ProviderAuthFailed { .. })
     }
 
-    /// Clone a provider error variant (all fields are `String`, so always cloneable).
+    /// Clone a provider error variant (all fields are cloneable).
     ///
     /// Returns `None` for non-provider error variants.
     pub fn clone_provider_error(&self) -> Option<FnoxError> {
@@ -830,7 +913,7 @@ impl FnoxError {
         self.clone_provider_error()
             .unwrap_or_else(|| FnoxError::ProviderCliFailed {
                 provider: fallback_provider.to_string(),
-                details: self.to_string(),
+                details: ProviderDetails::authored(self.to_string()),
                 hint: fallback_hint.to_string(),
                 url: fallback_url.to_string(),
             })
@@ -847,7 +930,7 @@ mod tests {
     fn is_auth_error_returns_true_for_provider_auth_failed() {
         let err = FnoxError::ProviderAuthFailed {
             provider: "test".to_string(),
-            details: "unauthorized".to_string(),
+            details: ProviderDetails::authored("unauthorized"),
             hint: "login".to_string(),
             url: "https://example.com".to_string(),
         };
@@ -865,13 +948,13 @@ mod tests {
             },
             FnoxError::ProviderCliFailed {
                 provider: "test".to_string(),
-                details: "exit 1".to_string(),
+                details: ProviderDetails::authored("exit 1"),
                 hint: "check".to_string(),
                 url: "https://example.com".to_string(),
             },
             FnoxError::ProviderInvalidResponse {
                 provider: "test".to_string(),
-                details: "bad json".to_string(),
+                details: ProviderDetails::authored("bad json"),
                 hint: "check".to_string(),
                 url: "https://example.com".to_string(),
             },
@@ -893,7 +976,7 @@ mod tests {
     fn clone_provider_error_clones_auth_failed() {
         let err = FnoxError::ProviderAuthFailed {
             provider: "test".to_string(),
-            details: "unauthorized".to_string(),
+            details: ProviderDetails::authored("unauthorized"),
             hint: "login".to_string(),
             url: "https://example.com".to_string(),
         };

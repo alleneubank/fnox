@@ -51,7 +51,7 @@ pub struct Cli {
     #[usage(short = 'P', long, global, setting = "profile")]
     pub profile: Vec<String>,
 
-    /// Enable verbose logging
+    /// Enable verbose logging and show provider error output, which can contain secret values
     #[usage(short, long, global)]
     pub verbose: bool,
 

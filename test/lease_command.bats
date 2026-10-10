@@ -236,6 +236,11 @@ SCRIPT
 
 	run "$FNOX_BIN" lease create test_cmd --duration 15m --format json
 	assert_failure
+	assert_output --partial "create_command exited"
+	refute_output --partial "something went wrong"
+
+	run "$FNOX_BIN" --verbose lease create test_cmd --duration 15m --format json
+	assert_failure
 	assert_output --partial "something went wrong"
 }
 

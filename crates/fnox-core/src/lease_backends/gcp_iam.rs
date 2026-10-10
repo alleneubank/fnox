@@ -1,4 +1,4 @@
-use crate::error::{FnoxError, Result};
+use crate::error::{FnoxError, ProviderDetails, Result};
 use crate::lease_backends::{Lease, LeaseBackend};
 use async_trait::async_trait;
 use indexmap::IndexMap;
@@ -61,7 +61,7 @@ impl LeaseBackend for GcpIamBackend {
                 .map_err(|e| {
                     FnoxError::ProviderAuthFailed {
                 provider: "GCP IAM".to_string(),
-                details: e.to_string(),
+                details: ProviderDetails::output(&e),
                 hint:
                     "Ensure GCP credentials are configured (gcloud auth, service account key, etc.)"
                         .to_string(),
@@ -78,7 +78,7 @@ impl LeaseBackend for GcpIamBackend {
             .await
             .map_err(|e| FnoxError::ProviderAuthFailed {
                 provider: "GCP IAM".to_string(),
-                details: e.to_string(),
+                details: ProviderDetails::output(&e),
                 hint: "Failed to get caller credentials for IAM API".to_string(),
                 url: URL.to_string(),
             })?;
@@ -104,7 +104,7 @@ impl LeaseBackend for GcpIamBackend {
             .await
             .map_err(|e| FnoxError::ProviderApiError {
                 provider: "GCP IAM".to_string(),
-                details: e.to_string(),
+                details: ProviderDetails::output(&e),
                 hint: "Failed to call IAM Credentials API".to_string(),
                 url: URL.to_string(),
             })?;
@@ -115,7 +115,7 @@ impl LeaseBackend for GcpIamBackend {
             if status.as_u16() == 403 || status.as_u16() == 401 {
                 return Err(FnoxError::ProviderAuthFailed {
                     provider: "GCP IAM".to_string(),
-                    details: body_text,
+                    details: ProviderDetails::output(&body_text),
                     hint: format!(
                         "Check IAM permissions for impersonating '{}'",
                         self.service_account_email
@@ -125,7 +125,7 @@ impl LeaseBackend for GcpIamBackend {
             }
             return Err(FnoxError::ProviderApiError {
                 provider: "GCP IAM".to_string(),
-                details: format!("HTTP {}: {}", status, body_text),
+                details: ProviderDetails::relayed(format!("HTTP {}", status), &body_text),
                 hint: "Check service account email and scopes".to_string(),
                 url: URL.to_string(),
             });
@@ -137,7 +137,7 @@ impl LeaseBackend for GcpIamBackend {
                 .await
                 .map_err(|e| FnoxError::ProviderInvalidResponse {
                     provider: "GCP IAM".to_string(),
-                    details: e.to_string(),
+                    details: ProviderDetails::output(&e),
                     hint: "Unexpected response from IAM Credentials API".to_string(),
                     url: URL.to_string(),
                 })?;
@@ -146,7 +146,7 @@ impl LeaseBackend for GcpIamBackend {
             .as_str()
             .ok_or_else(|| FnoxError::ProviderInvalidResponse {
                 provider: "GCP IAM".to_string(),
-                details: "Response missing 'accessToken' field".to_string(),
+                details: ProviderDetails::authored("Response missing 'accessToken' field"),
                 hint: "Unexpected response from IAM Credentials API".to_string(),
                 url: URL.to_string(),
             })?
