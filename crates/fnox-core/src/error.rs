@@ -213,6 +213,11 @@ pub enum FnoxError {
     ConfigNotFound { message: String, help: String },
 
     /// Generic config error for cases not covered by specific variants
+    // WAIVER(config values stay out of diagnostics): this and other free-text
+    // variants (e.g. AgeEncryptionFailed) can quote a rejected config value such
+    // as a role_arn or age recipient. Those fields name identities, not secrets,
+    // so a leak needs a secret pasted into the wrong field. Debt — removed by a
+    // ConfigValue type for strings read from config whose Display is masked.
     #[error("Configuration error: {0}")]
     #[diagnostic(code(fnox::config::error))]
     Config(String),
@@ -394,11 +399,13 @@ pub enum FnoxError {
         url: String,
     },
 
-    #[error("{provider}: secret '{secret}' not found")]
+    /// `secret` is the provider-side reference, which can itself be a secret
+    /// when misconfigured, so it is shown only with `--verbose`.
+    #[error("{provider}: secret not found{}", ProviderDetails::output(.secret))]
     #[diagnostic(
         code(fnox::provider::secret_not_found),
         help(
-            "The secret '{secret}' does not exist in {provider}.\n\
+            "The secret does not exist in {provider}.\n\
             {hint}"
         ),
         url("{url}")

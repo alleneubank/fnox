@@ -261,11 +261,7 @@ impl crate::providers::Provider for AwsSecretsManagerProvider {
 
     async fn get_secret(&self, value: &str) -> Result<String> {
         let secret_name = self.get_secret_name(value);
-        tracing::debug!(
-            "Getting secret '{}' from AWS Secrets Manager in region '{}'",
-            secret_name,
-            self.region
-        );
+        tracing::debug!("Getting secret from AWS Secrets Manager");
 
         self.get_secret_value(&secret_name).await
     }
@@ -370,10 +366,7 @@ impl crate::providers::Provider for AwsSecretsManagerProvider {
                                 }
                             }
                         } else {
-                            tracing::warn!(
-                                "Received secret '{}' that was not requested in batch",
-                                secret_name
-                            );
+                            tracing::warn!("Received a secret that was not requested in batch");
                         }
                     }
 

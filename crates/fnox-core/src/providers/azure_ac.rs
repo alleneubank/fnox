@@ -184,11 +184,7 @@ impl crate::providers::Provider for AzureAppConfigurationProvider {
 
     async fn get_secret(&self, value: &str) -> Result<String> {
         let key = self.get_key_name(value);
-        tracing::debug!(
-            "Getting key '{}' from Azure App Configuration '{}'",
-            key,
-            self.endpoint
-        );
+        tracing::debug!("Getting key from Azure App Configuration");
 
         // Omitting the label selects the key-value that has no label.
         let query: Vec<(&str, &str)> = match &self.label {
@@ -227,10 +223,7 @@ impl crate::providers::Provider for AzureAppConfigurationProvider {
     }
 
     async fn test_connection(&self) -> Result<()> {
-        tracing::debug!(
-            "Testing connection to Azure App Configuration '{}'",
-            self.endpoint
-        );
+        tracing::debug!("Testing connection to Azure App Configuration");
 
         // Filtered list: proves the store is reachable and the token is accepted
         // without depending on any particular key existing.

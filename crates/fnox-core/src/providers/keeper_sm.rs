@@ -280,7 +280,7 @@ impl crate::providers::Provider for KeeperSecretsManagerProvider {
 
     async fn get_secret(&self, value: &str) -> Result<String> {
         let notation = value.to_string();
-        tracing::debug!(notation = %notation, "Getting secret from Keeper Secrets Manager");
+        tracing::debug!("Getting secret from Keeper Secrets Manager");
         self.run_blocking(move |manager| {
             manager
                 .get_notation(&notation)

@@ -194,11 +194,7 @@ impl crate::providers::Provider for AzureSecretsManagerProvider {
 
     async fn get_secret(&self, value: &str) -> Result<String> {
         let secret_name = self.get_secret_name(value);
-        tracing::debug!(
-            "Getting secret '{}' from Azure Key Vault '{}'",
-            secret_name,
-            self.vault_url
-        );
+        tracing::debug!("Getting secret from Azure Key Vault");
 
         self.get_secret_value(&secret_name).await
     }

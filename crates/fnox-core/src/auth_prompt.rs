@@ -39,20 +39,21 @@ pub fn prompt_and_run_auth(
         provider_name, error
     );
 
-    // A configured auth_command can embed credentials, so only its program is shown.
-    let shown_command = command_program(auth_command);
-    let user_confirmed = Confirm::new(format!("Run `{shown_command}` to authenticate?"))
-        .affirmative("Yes")
-        .negative("No")
-        .run()
-        .map_err(|e| FnoxError::Provider(format!("Failed to show prompt: {}", e)))?;
+    // A configured auth_command can embed credentials, so none of it is shown.
+    let user_confirmed = Confirm::new(format!(
+        "Run the auth command for provider '{provider_name}' to authenticate?"
+    ))
+    .affirmative("Yes")
+    .negative("No")
+    .run()
+    .map_err(|e| FnoxError::Provider(format!("Failed to show prompt: {}", e)))?;
 
     if !user_confirmed {
         return Ok(false);
     }
 
     // Run the auth command
-    eprintln!("Running: {shown_command}");
+    eprintln!("Running the auth command for provider '{provider_name}'");
 
     let status = run_auth_command(auth_command);
 
@@ -72,24 +73,13 @@ pub fn prompt_and_run_auth(
     }
 }
 
-/// The command's program, skipping leading `NAME=value` assignments, with `…`
-/// marking anything omitted.
-fn command_program(command: &str) -> String {
-    let words: Vec<&str> = command.split_whitespace().collect();
-    let program_index = words.iter().position(|word| !word.contains('='));
-    match program_index {
-        Some(index) if index == 0 && words.len() == 1 => words[0].to_string(),
-        Some(index) => format!("{} …", words[index]),
-        None => "…".to_string(),
-    }
-}
-
-// WAIVER(provider output stays off stderr): when stderr is a terminal, the auth
-// command's stdout is shown there, so a token it prints (bw unlock, op signin)
-// reaches the screen of the user who just confirmed running it, as if they had
-// run it themselves. aws sso login prints its device code on stdout, so
-// dropping it would break that login. When stderr is not a terminal, stdout is
-// discarded. Permanent — the only alternative breaks device-code logins.
+// WAIVER(provider output stays off stderr): the auth command's stderr is
+// inherited, and when fnox's stderr is a terminal its stdout is shown there
+// too, so a token it prints (bw unlock --raw, op signin) reaches the screen of
+// the user who just confirmed running it, as if they had run it themselves.
+// aws sso login prints its device code on stdout and interactive logins prompt
+// on stderr, so withholding either breaks them. When stderr is not a terminal,
+// stdout is discarded. Permanent — the only alternative breaks interactive logins.
 fn run_auth_command(auth_command: &str) -> std::io::Result<std::process::ExitStatus> {
     let (shell, flag) = if cfg!(target_os = "windows") {
         ("cmd", "/C")
@@ -124,17 +114,6 @@ mod tests {
     }
 
     // Integration-level: non-auth errors return Ok(false) from prompt_and_run_auth
-    #[test]
-    fn command_program_hides_arguments_and_assignments() {
-        assert_eq!(command_program("op signin"), "op …");
-        assert_eq!(command_program("aws"), "aws");
-        assert_eq!(
-            command_program("TOKEN=fake-token login-helper --x"),
-            "login-helper …"
-        );
-        assert_eq!(command_program("TOKEN=fake-token"), "…");
-    }
-
     #[test]
     fn non_auth_error_skips_prompt() {
         let config = Config::new();

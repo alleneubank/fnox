@@ -251,11 +251,7 @@ impl crate::providers::Provider for BitwardenSecretsManagerProvider {
                 .await?;
         } else {
             let project_id = self.resolve_project_id()?;
-            tracing::debug!(
-                "Creating new BSM secret '{}' in project '{}'",
-                key,
-                project_id
-            );
+            tracing::debug!("Creating new BSM secret");
             self.execute_bws_command(&["secret", "create", key, value, &project_id])
                 .await?;
         }

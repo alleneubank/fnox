@@ -316,10 +316,7 @@ impl AwsParameterStoreProvider {
             .await
             .map_err(|e| aws_ps_error_to_fnox(&e, parameter_name))?;
 
-        tracing::debug!(
-            "Stored parameter '{}' in AWS Parameter Store",
-            parameter_name
-        );
+        tracing::debug!("Stored parameter in AWS Parameter Store");
         Ok(())
     }
 }
@@ -332,11 +329,7 @@ impl crate::providers::Provider for AwsParameterStoreProvider {
 
     async fn get_secret(&self, value: &str) -> Result<String> {
         let parameter_name = self.get_parameter_name(value);
-        tracing::debug!(
-            "Getting parameter '{}' from AWS Parameter Store in region '{}'",
-            parameter_name,
-            self.region
-        );
+        tracing::debug!("Getting parameter from AWS Parameter Store");
 
         self.get_parameter_value(&parameter_name).await
     }

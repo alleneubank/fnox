@@ -64,12 +64,7 @@ impl KeychainProvider {
         let full_key = self.build_key_name(key);
         let service = self.service.clone();
 
-        tracing::debug!(
-            "Storing secret '{}' in OS keychain (service: '{}', key: '{}')",
-            full_key,
-            self.service,
-            full_key
-        );
+        tracing::debug!("Storing secret in OS keychain");
 
         let value = value.to_string();
         let set_full_key = full_key.clone();
@@ -86,11 +81,7 @@ impl KeychainProvider {
                 url: "https://fnox.jdx.dev/providers/keychain".to_string(),
             })?;
 
-        tracing::debug!(
-            "Successfully stored secret '{}' in OS keychain (service: '{}')",
-            full_key,
-            self.service
-        );
+        tracing::debug!("Successfully stored secret in OS keychain");
         Ok(())
     }
 }
@@ -106,11 +97,7 @@ impl crate::providers::Provider for KeychainProvider {
         let full_key = self.build_key_name(value);
         let service = self.service.clone();
 
-        tracing::debug!(
-            "Getting secret '{}' from OS keychain (service: '{}')",
-            full_key,
-            service
-        );
+        tracing::debug!("Getting secret from OS keychain");
 
         spawn_keychain_blocking(move || entry.get_password())
             .await?

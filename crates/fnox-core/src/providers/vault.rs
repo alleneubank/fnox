@@ -322,11 +322,7 @@ impl crate::providers::Provider for HashiCorpVaultProvider {
 
         let secret_path = self.get_secret_path(secret_name);
 
-        tracing::debug!(
-            "Reading Vault secret '{}' field '{}'",
-            secret_path,
-            field_name
-        );
+        tracing::debug!("Reading Vault secret field");
 
         // Build the vault kv get command
         // vault kv get -field=<field> <path>

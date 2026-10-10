@@ -100,13 +100,24 @@ fn mask_toml(content: &str) -> String {
     let mut nesting: Vec<Nesting> = Vec::new();
     let mut expect_key = true;
     let mut in_header = false;
+    // An `=` whose value has not started yet; the value may follow on a later
+    // line in malformed input, so a newline must not turn it into a key.
+    let mut value_pending = false;
     let mut i = 0;
     while i < bytes.len() {
         let key_position = expect_key || in_header;
+        if value_pending && !matches!(bytes[i], b' ' | b'\t' | b'\r' | b'\n' | b'#') {
+            value_pending = false;
+            if bytes[i] == b'[' {
+                nesting.push(Nesting::Array);
+                i += 1;
+                continue;
+            }
+        }
         match bytes[i] {
             b' ' | b'\t' | b'\r' => i += 1,
             b'\n' => {
-                if nesting.is_empty() {
+                if nesting.is_empty() && !value_pending {
                     expect_key = true;
                     in_header = false;
                 }
@@ -157,6 +168,7 @@ fn mask_toml(content: &str) -> String {
             }
             b'=' => {
                 expect_key = false;
+                value_pending = !in_header && nesting.last() != Some(&Nesting::Array);
                 i += 1;
             }
             b'.' if key_position => i += 1,
@@ -378,6 +390,16 @@ mod tests {
             &["next-line-value", "oops", "bare-value", "more"],
         );
         assert_kept(&redacted, &["TOKEN =", "BARE ="]);
+    }
+
+    #[test]
+    fn toml_masks_arrays_and_dotted_pairs_continued_onto_a_new_line() {
+        let redacted = Redacted::toml(
+            "TOKEN =\n[\"array-value\"]\nOTHER =\n\"dotted-value\".oops = 1\nNEXT = 1\n",
+        );
+
+        assert_hidden(&redacted, &["array-value", "dotted-value", "oops"]);
+        assert_kept(&redacted, &["TOKEN =", "OTHER =", "NEXT = "]);
     }
 
     #[test]

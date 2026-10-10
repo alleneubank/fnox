@@ -158,6 +158,28 @@ EOF
 	[[ $stderr != *"FAKE_URL_SECRET"* ]]
 }
 
+@test "secret-not-found errors do not echo the reference" {
+	fake_pass <<'EOF'
+#!/bin/sh
+echo "Error: $2 is not in the password store." >&2
+exit 1
+EOF
+	cat >fnox.toml <<'EOF'
+root = true
+
+[providers.pass]
+type = "password-store"
+
+[secrets]
+TOKEN = { provider = "pass", value = "FAKE_NOTFOUND_REF", if_missing = "error" }
+EOF
+
+	run --separate-stderr "$FNOX_BIN" --non-interactive get TOKEN
+	assert_failure
+	[[ $stderr == *"not found"* ]]
+	[[ $stderr != *"FAKE_NOTFOUND_REF"* ]]
+}
+
 @test "import parse errors do not echo the input" {
 	cat >fnox.toml <<'EOF'
 root = true

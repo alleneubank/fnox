@@ -84,11 +84,7 @@ impl InfisicalProvider {
             let base_url = api_url.trim_end_matches("/api").trim_end_matches('/');
             cmd.arg("--domain");
             cmd.arg(base_url);
-            tracing::debug!(
-                "Using custom Infisical domain: {} (from: {})",
-                base_url,
-                api_url
-            );
+            tracing::debug!("Using custom Infisical domain");
         }
 
         cmd.stdin(std::process::Stdio::null());
@@ -239,13 +235,7 @@ impl crate::providers::Provider for InfisicalProvider {
             args.push(&path_arg);
         }
 
-        tracing::debug!(
-            "Fetching secret '{}' with project_id={:?}, environment={:?}, path={:?}",
-            value,
-            self.project_id,
-            self.environment,
-            self.path
-        );
+        tracing::debug!("Fetching secret from Infisical");
 
         let json_output = self.execute_infisical_command(&args, Some(value)).await?;
 

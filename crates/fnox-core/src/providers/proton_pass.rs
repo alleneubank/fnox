@@ -332,11 +332,7 @@ impl crate::providers::Provider for ProtonPassProvider {
                 Some((id, f)) => (id, f),
                 None => (id_ref, "password"),
             };
-            tracing::debug!(
-                "Reading Proton Pass secret by ID: {} field: {}",
-                item_id,
-                field
-            );
+            tracing::debug!("Reading Proton Pass secret by ID");
             return self
                 .execute_pass_cli_command(
                     &[

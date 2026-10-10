@@ -139,11 +139,9 @@ impl BitwardenProvider {
 
         if let Some(profile) = &self.profile {
             match std::env::var("BITWARDENCLI_APPDATA_DIR") {
-                Ok(existing_value) => {
+                Ok(_) => {
                     tracing::warn!(
-                        "BITWARDENCLI_APPDATA_DIR is already set to '{}', not overriding with profile '{}'",
-                        existing_value,
-                        profile
+                        "BITWARDENCLI_APPDATA_DIR is already set; not overriding it with the configured profile"
                     );
                 }
                 Err(_) => {
@@ -326,11 +324,7 @@ impl crate::providers::Provider for BitwardenProvider {
         // Default field is "password" if not specified
         let (item_name, field_name) = Self::parse_reference(value);
 
-        tracing::debug!(
-            "Reading Bitwarden item '{}' field '{}'",
-            item_name,
-            field_name
-        );
+        tracing::debug!("Reading Bitwarden item field");
 
         let is_custom_field = !matches!(
             field_name,

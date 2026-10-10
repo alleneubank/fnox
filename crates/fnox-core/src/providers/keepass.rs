@@ -395,12 +395,7 @@ impl crate::providers::Provider for KeePassProvider {
     async fn get_secret(&self, value: &str) -> Result<String> {
         let (entry_path, field) = Self::parse_reference(value);
 
-        tracing::debug!(
-            "Getting KeePass secret '{}' field '{}' from '{}'",
-            entry_path.join("/"),
-            field,
-            self.database_path.display()
-        );
+        tracing::debug!("Getting KeePass secret");
 
         let db = self.open_database()?;
 
@@ -432,45 +427,31 @@ impl crate::providers::Provider for KeePassProvider {
         // Parse the key to determine entry path and field
         let (entry_path, field) = Self::parse_reference(key);
 
-        tracing::debug!(
-            "Storing KeePass secret '{}' field '{}' in '{}'",
-            entry_path.join("/"),
-            field,
-            self.database_path.display()
-        );
+        tracing::debug!("Storing KeePass secret");
 
         // Check if database exists; if not, create a new one
         let mut db = if self.database_path.exists() {
             self.open_database()?
         } else {
             // Create new KDBX4 database
-            tracing::info!(
-                "Creating new KeePass database at '{}'",
-                self.database_path.display()
-            );
+            tracing::info!("Creating new KeePass database");
             Database::new()
         };
 
         // Find or create the entry
-        let entry_name = Self::find_or_create_entry(&mut db, &entry_path, value, field)?;
+        Self::find_or_create_entry(&mut db, &entry_path, value, field)?;
 
         // Save the database
         self.save_database(&db)?;
 
-        tracing::debug!(
-            "Successfully stored secret in KeePass entry '{}'",
-            entry_name
-        );
+        tracing::debug!("Successfully stored secret in KeePass");
 
         // Return the reference to store in config
         Ok(key.to_string())
     }
 
     async fn test_connection(&self) -> Result<()> {
-        tracing::debug!(
-            "Testing connection to KeePass database '{}'",
-            self.database_path.display()
-        );
+        tracing::debug!("Testing connection to KeePass database");
 
         // Verify password is available
         self.get_password()?;
@@ -493,10 +474,7 @@ impl crate::providers::Provider for KeePassProvider {
             self.open_database()?;
             tracing::debug!("KeePass database connection test successful");
         } else {
-            tracing::debug!(
-                "KeePass database '{}' does not exist yet (will be created on first write)",
-                self.database_path.display()
-            );
+            tracing::debug!("KeePass database does not exist yet (will be created on first write)");
         }
 
         Ok(())

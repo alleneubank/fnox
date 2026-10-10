@@ -272,12 +272,9 @@ impl GitHubOauthBackend {
                 invalid_response(ProviderDetails::relayed("Invalid refresh response", &e))
             })?;
 
-        if let Some(err) = &response.error {
-            // The description is GitHub's free text, so only the error code is logged.
-            tracing::debug!(
-                error = err.as_str(),
-                "GitHub OAuth refresh token rejected; falling back to device flow"
-            );
+        if response.error.is_some() {
+            // The error fields are GitHub's free text, so none of it is logged.
+            tracing::debug!("GitHub OAuth refresh token rejected; falling back to device flow");
             return Ok(None);
         }
 
