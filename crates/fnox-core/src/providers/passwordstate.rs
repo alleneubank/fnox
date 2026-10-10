@@ -110,7 +110,7 @@ impl PasswordstateProvider {
         let client = self.create_client()?;
         let url = format!("{}/api/passwords/{}", self.base_url, password_id);
 
-        tracing::debug!("Fetching password by ID from: {}", url);
+        tracing::debug!("Fetching password by ID from Passwordstate");
 
         let response = client
             .get(&url)
@@ -130,7 +130,7 @@ impl PasswordstateProvider {
             if status.as_u16() == 401 || status.as_u16() == 403 {
                 return Err(FnoxError::ProviderAuthFailed {
                     provider: "Passwordstate".to_string(),
-                    details: ProviderDetails::relayed(format!("HTTP {}", status), &body),
+                    details: ProviderDetails::relayed_number("HTTP {}", status.as_u16(), &body),
                     hint: "Check your API key is valid and has access to this password list"
                         .to_string(),
                     url: "https://fnox.jdx.dev/providers/overview".to_string(),
@@ -138,7 +138,7 @@ impl PasswordstateProvider {
             }
             return Err(FnoxError::ProviderApiError {
                 provider: "Passwordstate".to_string(),
-                details: ProviderDetails::relayed(format!("HTTP {}", status), &body),
+                details: ProviderDetails::relayed_number("HTTP {}", status.as_u16(), &body),
                 hint: "Check your Passwordstate server configuration".to_string(),
                 url: "https://fnox.jdx.dev/providers/overview".to_string(),
             });
@@ -182,10 +182,7 @@ impl PasswordstateProvider {
 
         value.ok_or_else(|| FnoxError::ProviderInvalidResponse {
             provider: "Passwordstate".to_string(),
-            details: ProviderDetails::authored(format!(
-                "Field '{}' not found or empty in password entry",
-                field
-            )),
+            details: ProviderDetails::relayed("Field not found or empty in password entry", field),
             hint: "Available fields: password, username, title, url, description, notes"
                 .to_string(),
             url: "https://fnox.jdx.dev/providers/overview".to_string(),
@@ -203,7 +200,7 @@ impl PasswordstateProvider {
             self.base_url, self.password_list_id, encoded_title
         );
 
-        tracing::debug!("Searching for password by title: {}", url);
+        tracing::debug!("Searching for password by title Passwordstate");
 
         let response = client
             .get(&url)
@@ -223,7 +220,7 @@ impl PasswordstateProvider {
             if status.as_u16() == 401 || status.as_u16() == 403 {
                 return Err(FnoxError::ProviderAuthFailed {
                     provider: "Passwordstate".to_string(),
-                    details: ProviderDetails::relayed(format!("HTTP {}", status), &body),
+                    details: ProviderDetails::relayed_number("HTTP {}", status.as_u16(), &body),
                     hint: "Check your API key is valid and has access to this password list"
                         .to_string(),
                     url: "https://fnox.jdx.dev/providers/overview".to_string(),
@@ -231,7 +228,7 @@ impl PasswordstateProvider {
             }
             return Err(FnoxError::ProviderApiError {
                 provider: "Passwordstate".to_string(),
-                details: ProviderDetails::relayed(format!("HTTP {}", status), &body),
+                details: ProviderDetails::relayed_number("HTTP {}", status.as_u16(), &body),
                 hint: "Check your Passwordstate server configuration".to_string(),
                 url: "https://fnox.jdx.dev/providers/overview".to_string(),
             });
@@ -275,7 +272,7 @@ impl crate::providers::Provider for PasswordstateProvider {
     }
 
     async fn get_secret(&self, value: &str) -> Result<String> {
-        tracing::debug!("Getting secret '{}' from Passwordstate", value);
+        tracing::debug!("Getting secret from Passwordstate");
 
         let (identifier, field, is_id) = self.parse_reference(value)?;
 
@@ -315,7 +312,7 @@ impl crate::providers::Provider for PasswordstateProvider {
         // Try to access the password list to verify connection and authentication
         let url = format!("{}/api/passwords/{}", self.base_url, self.password_list_id);
 
-        tracing::debug!("Testing Passwordstate connection: {}", url);
+        tracing::debug!("Testing Passwordstate connection");
 
         let response = client
             .get(&url)
@@ -325,8 +322,8 @@ impl crate::providers::Provider for PasswordstateProvider {
             .map_err(|e| FnoxError::ProviderApiError {
                 provider: "Passwordstate".to_string(),
                 details: ProviderDetails::relayed(
-                    format!("Failed to connect to '{}'", self.base_url),
-                    &e,
+                    "Failed to connect",
+                    format!("{}: {e}", self.base_url),
                 ),
                 hint: "Check network connectivity to the Passwordstate server".to_string(),
                 url: "https://fnox.jdx.dev/providers/overview".to_string(),
@@ -337,10 +334,10 @@ impl crate::providers::Provider for PasswordstateProvider {
             if status.as_u16() == 401 || status.as_u16() == 403 {
                 return Err(FnoxError::ProviderAuthFailed {
                     provider: "Passwordstate".to_string(),
-                    details: ProviderDetails::authored(format!(
+                    details: ProviderDetails::authored_number(
                         "Connection test failed: HTTP {}",
-                        status
-                    )),
+                        status.as_u16(),
+                    ),
                     hint: "Check your API key is valid and has access to this password list"
                         .to_string(),
                     url: "https://fnox.jdx.dev/providers/overview".to_string(),
@@ -348,10 +345,10 @@ impl crate::providers::Provider for PasswordstateProvider {
             }
             return Err(FnoxError::ProviderApiError {
                 provider: "Passwordstate".to_string(),
-                details: ProviderDetails::authored(format!(
+                details: ProviderDetails::authored_number(
                     "Connection test failed: HTTP {}",
-                    status
-                )),
+                    status.as_u16(),
+                ),
                 hint: "Check your Passwordstate server configuration".to_string(),
                 url: "https://fnox.jdx.dev/providers/overview".to_string(),
             });

@@ -113,7 +113,7 @@ impl DopplerProvider {
 #[async_trait]
 impl crate::providers::Provider for DopplerProvider {
     async fn get_secret(&self, value: &str) -> Result<String> {
-        tracing::debug!("Getting secret '{}' from Doppler", value);
+        tracing::debug!("Getting secret from Doppler");
 
         self.execute_doppler_command(&["secrets", "get", value, "--plain"], Some(value))
             .await

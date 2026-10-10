@@ -7,10 +7,11 @@ use thiserror::Error;
 
 /// The detail text of a provider error, split by who wrote it.
 ///
-/// `summary` is text fnox wrote and is always shown. `relayed` is text fnox did
-/// not write (a CLI's stderr, an HTTP body, an SDK or parser message, a secret
-/// reference from config), which can contain secret values; it is shown only
-/// when `--verbose` enabled it. `Debug` withholds it as well.
+/// `summary` is a literal fnox wrote (optionally with a number) and is always
+/// shown. `relayed` is everything else: a CLI's stderr, an HTTP body, an SDK or
+/// parser message, and names or paths taken from config or secret references.
+/// That text can contain secret values, so it is shown only when `--verbose`
+/// enabled it; `Debug` withholds it as well.
 #[derive(Clone, Default, PartialEq, Eq)]
 pub struct ProviderDetails(Box<DetailParts>);
 
@@ -21,25 +22,42 @@ struct DetailParts {
 }
 
 impl ProviderDetails {
-    /// Detail text fnox wrote itself, containing no provider output or config values.
-    pub fn authored(summary: impl Into<String>) -> Self {
-        Self(Box::new(DetailParts {
-            summary: summary.into(),
-            relayed: None,
-        }))
+    /// Detail text fnox wrote itself. It takes only a literal so that no
+    /// provider output or config value can be interpolated into shown text.
+    pub fn authored(summary: &'static str) -> Self {
+        Self::from_parts(summary.to_string(), None)
+    }
+
+    /// A literal whose `{}` is replaced by a number fnox chose or a status
+    /// code; a number cannot carry secret text.
+    pub fn authored_number(template: &'static str, number: impl Into<u64>) -> Self {
+        Self::from_parts(fill_number(template, number.into()), None)
     }
 
     /// A fnox-written summary followed by text the provider wrote.
-    pub fn relayed(summary: impl Into<String>, relayed: impl std::fmt::Display) -> Self {
-        Self(Box::new(DetailParts {
-            summary: summary.into(),
-            relayed: Some(relayed.to_string()),
-        }))
+    pub fn relayed(summary: &'static str, relayed: impl std::fmt::Display) -> Self {
+        Self::from_parts(summary.to_string(), Some(relayed.to_string()))
+    }
+
+    /// [`Self::relayed`] with a summary built like [`Self::authored_number`].
+    pub fn relayed_number(
+        template: &'static str,
+        number: impl Into<u64>,
+        relayed: impl std::fmt::Display,
+    ) -> Self {
+        Self::from_parts(
+            fill_number(template, number.into()),
+            Some(relayed.to_string()),
+        )
     }
 
     /// Text the provider wrote, with no fnox-written summary.
     pub fn output(relayed: impl std::fmt::Display) -> Self {
-        Self::relayed(String::new(), relayed)
+        Self::relayed("", relayed)
+    }
+
+    fn from_parts(summary: String, relayed: Option<String>) -> Self {
+        Self(Box::new(DetailParts { summary, relayed }))
     }
 
     /// Whether either part contains `needle`, for classifying failures.
@@ -58,6 +76,14 @@ impl ProviderDetails {
     }
 }
 
+fn fill_number(template: &'static str, number: u64) -> String {
+    assert!(
+        template.contains("{}"),
+        "template without a number slot: {template}"
+    );
+    template.replacen("{}", &number.to_string(), 1)
+}
+
 impl std::fmt::Display for ProviderDetails {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if !self.0.summary.is_empty() {
@@ -66,7 +92,7 @@ impl std::fmt::Display for ProviderDetails {
         match self.0.relayed.as_deref() {
             None | Some("") => Ok(()),
             Some(relayed) if crate::env::is_provider_output_shown() => write!(f, ": {relayed}"),
-            Some(_) => f.write_str(" (provider output hidden; rerun with --verbose to show it)"),
+            Some(_) => f.write_str(" (details hidden; rerun with --verbose to show them)"),
         }
     }
 }
@@ -913,7 +939,7 @@ impl FnoxError {
         self.clone_provider_error()
             .unwrap_or_else(|| FnoxError::ProviderCliFailed {
                 provider: fallback_provider.to_string(),
-                details: ProviderDetails::authored(self.to_string()),
+                details: ProviderDetails::output(self),
                 hint: fallback_hint.to_string(),
                 url: fallback_url.to_string(),
             })

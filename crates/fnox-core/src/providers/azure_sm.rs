@@ -32,8 +32,8 @@ fn handle_connection_test_error(vault_url: &str, error: Error) -> Result<()> {
         _ => Err(FnoxError::ProviderApiError {
             provider: "Azure Key Vault".to_string(),
             details: ProviderDetails::relayed(
-                format!("Failed to connect to vault '{}'", vault_url),
-                &details,
+                "Failed to connect to vault",
+                format!("{}: {}", vault_url, details),
             ),
             hint: "Check your Azure Key Vault URL and network connectivity".to_string(),
             url: URL.to_string(),
@@ -129,10 +129,7 @@ impl AzureSecretsManagerProvider {
             .value
             .ok_or_else(|| FnoxError::ProviderInvalidResponse {
                 provider: "Azure Key Vault".to_string(),
-                details: ProviderDetails::authored(format!(
-                    "Secret '{}' has no value",
-                    secret_name
-                )),
+                details: ProviderDetails::relayed("Secret has no value", secret_name),
                 hint: "The secret exists but has no value set".to_string(),
                 url: URL.to_string(),
             })
@@ -184,7 +181,7 @@ impl AzureSecretsManagerProvider {
                 }
             })?;
 
-        tracing::debug!("Set secret '{}' in Azure Key Vault", secret_name);
+        tracing::debug!("Set secret in Azure Key Vault");
         Ok(())
     }
 }

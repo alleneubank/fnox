@@ -130,7 +130,7 @@ impl crate::providers::Provider for PasswordStoreProvider {
     async fn get_secret(&self, value: &str) -> Result<String> {
         let secret_path = self.build_secret_path(value);
 
-        tracing::debug!("Getting secret '{secret_path}' from password-store");
+        tracing::debug!("Getting secret from password-store");
 
         // Use `pass show` to retrieve the secret
         self.execute_pass_command(&["show", &secret_path]).await
@@ -139,7 +139,7 @@ impl crate::providers::Provider for PasswordStoreProvider {
     async fn put_secret(&self, key: &str, value: &str) -> Result<String> {
         let secret_path = self.build_secret_path(key);
 
-        tracing::debug!("Storing secret '{secret_path}' in password-store");
+        tracing::debug!("Storing secret in password-store");
 
         // Use `pass insert` with multiline support
         // pass insert -m will read from stdin until EOF
@@ -217,7 +217,7 @@ impl crate::providers::Provider for PasswordStoreProvider {
             });
         }
 
-        tracing::debug!("Successfully stored secret '{secret_path}' in password-store");
+        tracing::debug!("Successfully stored secret in password-store");
         Ok(key.to_string())
     }
 

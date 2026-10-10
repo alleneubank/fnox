@@ -19,23 +19,25 @@ impl Redacted {
         Self(Arc::new(mask_toml(content)))
     }
 
-    /// Mask everything except whitespace and punctuation, for formats whose
-    /// keys cannot be told apart from values without a parser (JSON, YAML).
+    /// Mask everything except whitespace, for formats whose keys cannot be
+    /// told apart from values without a parser (JSON, YAML). The snippet then
+    /// shows only the shape of the input around the error.
     pub fn all(content: &str) -> Self {
         let mut bytes = content.as_bytes().to_vec();
-        for byte in &mut bytes {
-            if !(byte.is_ascii_whitespace() || byte.is_ascii_punctuation()) {
-                *byte = b'*';
-            }
-        }
+        mask_non_whitespace(&mut bytes);
         Self(Arc::new(into_string(bytes)))
     }
 
-    /// Mask the values a serde or TOML parser message quotes: double-quoted
-    /// strings, and backticked scalars after `boolean`, `integer`, `point`,
-    /// `character` or `variant`. Field names and expected tokens stay readable.
+    /// Keep a parser message up to its first quote or backtick and mask the
+    /// rest. Parsers quote offending values without escaping them, so nothing
+    /// after the first delimiter can be trusted; the masked source snippet
+    /// still shows where the error is.
     pub fn message(message: &str) -> Self {
-        Self(Arc::new(mask_message(message)))
+        let mut bytes = message.as_bytes().to_vec();
+        if let Some(start) = bytes.iter().position(|b| matches!(b, b'"' | b'`' | b'\'')) {
+            mask_non_whitespace(&mut bytes[start..]);
+        }
+        Self(Arc::new(into_string(bytes)))
     }
 
     pub fn as_str(&self) -> &str {
@@ -64,6 +66,12 @@ impl SourceCode for Redacted {
 
 fn into_string(bytes: Vec<u8>) -> String {
     String::from_utf8(bytes).expect("masking replaces whole UTF-8 sequences with ASCII bytes")
+}
+
+fn mask_non_whitespace(bytes: &mut [u8]) {
+    for byte in bytes.iter_mut().filter(|b| !b.is_ascii_whitespace()) {
+        *byte = b'*';
+    }
 }
 
 fn mask(bytes: &mut [u8]) {
@@ -177,7 +185,8 @@ fn mask_toml(content: &str) -> String {
                 {
                     end += 1;
                 }
-                if !(key_position && is_key_end(bytes, end, in_header)) {
+                let is_bare_key = bytes[start..end].iter().all(|&b| is_bare_key_byte(b));
+                if !(key_position && is_bare_key && is_key_end(bytes, end, in_header)) {
                     mask(&mut out[start..end]);
                 }
                 i = end;
@@ -187,12 +196,47 @@ fn mask_toml(content: &str) -> String {
     into_string(out)
 }
 
-/// Whether the next token after a key candidate makes it a key.
+/// Whether a key candidate ending at `from` is followed, on the same line, by
+/// more dotted key parts and then `=` (or a header's `]`). Anything else,
+/// including a value continued onto a new line, leaves the candidate masked.
 fn is_key_end(bytes: &[u8], from: usize, in_header: bool) -> bool {
-    bytes[from..]
+    let mut i = skip_blanks(bytes, from);
+    loop {
+        match bytes.get(i) {
+            Some(b'=') => return !in_header,
+            Some(b']') => return in_header,
+            Some(b'.') => i = skip_blanks(bytes, i + 1),
+            _ => return false,
+        }
+        i = match bytes.get(i) {
+            Some(&quote @ (b'"' | b'\'')) => {
+                let end = string_end(bytes, i + 1, quote);
+                if bytes.get(end) != Some(&quote) {
+                    return false;
+                }
+                skip_blanks(bytes, end + 1)
+            }
+            Some(&b) if is_bare_key_byte(b) => {
+                let len = bytes[i..]
+                    .iter()
+                    .take_while(|&&b| is_bare_key_byte(b))
+                    .count();
+                skip_blanks(bytes, i + len)
+            }
+            _ => return false,
+        };
+    }
+}
+
+fn is_bare_key_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-'
+}
+
+fn skip_blanks(bytes: &[u8], from: usize) -> usize {
+    from + bytes[from.min(bytes.len())..]
         .iter()
-        .find(|&&b| b != b' ' && b != b'\t')
-        .is_some_and(|&b| b == b'=' || b == b'.' || (in_header && b == b']'))
+        .take_while(|&&b| b == b' ' || b == b'\t')
+        .count()
 }
 
 fn line_end(bytes: &[u8], from: usize) -> usize {
@@ -230,41 +274,6 @@ fn multiline_string_end(bytes: &[u8], from: usize, quote: u8) -> usize {
         }
     }
     bytes.len()
-}
-
-/// Words after which serde puts a scalar value in backticks.
-const BACKTICKED_VALUE_PREFIXES: [&str; 5] =
-    ["boolean", "integer", "point", "character", "variant"];
-
-fn mask_message(message: &str) -> String {
-    let bytes = message.as_bytes();
-    let mut out = bytes.to_vec();
-    let mut i = 0;
-    while i < bytes.len() {
-        match bytes[i] {
-            b'"' => {
-                let end = string_end(bytes, i + 1, b'"');
-                mask(&mut out[i + 1..end]);
-                i = end + 1;
-            }
-            b'`' => {
-                let end = bytes[i + 1..]
-                    .iter()
-                    .position(|&b| b == b'`')
-                    .map_or(bytes.len(), |offset| i + 1 + offset);
-                let preceding = message[..i].trim_end();
-                if BACKTICKED_VALUE_PREFIXES
-                    .iter()
-                    .any(|word| preceding.ends_with(word))
-                {
-                    mask(&mut out[i + 1..end]);
-                }
-                i = end + 1;
-            }
-            _ => i += 1,
-        }
-    }
-    into_string(out)
 }
 
 #[cfg(test)]
@@ -360,29 +369,46 @@ mod tests {
     }
 
     #[test]
-    fn all_keeps_only_punctuation_and_whitespace() {
-        let redacted = Redacted::all("{\"KEY\": \"json-value\",\n key: yaml-value}");
+    fn toml_masks_values_continued_onto_a_new_line() {
+        let redacted =
+            Redacted::toml("TOKEN =\n\"next-line-value\".oops\nBARE =\nbare-value.more\n");
 
-        assert_hidden(&redacted, &["KEY", "json", "yaml", "value"]);
+        assert_hidden(
+            &redacted,
+            &["next-line-value", "oops", "bare-value", "more"],
+        );
+        assert_kept(&redacted, &["TOKEN =", "BARE ="]);
+    }
+
+    #[test]
+    fn all_keeps_only_whitespace() {
+        let redacted = Redacted::all("{\"KEY\": \"!@#$%^&*()_+-=\",\n key: yaml-value}");
+
         assert_eq!(
             redacted.as_str(),
-            "{\"***\": \"****-*****\",\n ***: ****-*****}"
+            "******* *****************\n **** ***********"
         );
     }
 
     #[test]
-    fn message_masks_quoted_values_but_keeps_field_names() {
-        let redacted = Redacted::message(concat!(
-            "invalid type: string \"str-value\", expected a boolean; ",
-            "invalid type: integer `1234`, expected a string; ",
-            "unknown variant `variant-value`, expected one of `error`, `warn`; ",
-            "missing field `provider`",
-        ));
-
-        assert_hidden(&redacted, &["str-value", "1234", "variant-value"]);
-        assert_kept(
-            &redacted,
-            &["`error`", "`warn`", "missing field `provider`"],
+    fn message_keeps_only_the_text_before_the_first_quote() {
+        for message in [
+            "invalid type: string \"str-value\", expected a boolean",
+            "invalid type: integer `1234`, expected a string",
+            "unknown variant `x`backtick-value`, expected one of `error`, `warn`",
+            "invalid value: 'single-value'",
+        ] {
+            let redacted = Redacted::message(message);
+            for secret in ["str-value", "1234", "backtick-value", "single-value"] {
+                assert!(
+                    !redacted.as_str().contains(secret),
+                    "{secret} leaked: {redacted}"
+                );
+            }
+        }
+        assert_eq!(
+            Redacted::message("unknown variant `v`, expected `a`").as_str(),
+            "unknown variant **** ******** ***"
         );
     }
 }

@@ -282,8 +282,8 @@ impl BitwardenProvider {
             serde_json::from_str(json).map_err(|e| FnoxError::ProviderInvalidResponse {
                 provider: "Bitwarden".to_string(),
                 details: ProviderDetails::relayed(
-                    format!("Failed to parse item '{}'", item_name),
-                    &e,
+                    "Failed to parse item",
+                    format!("{}: {}", item_name, e),
                 ),
                 hint: "Check that the Bitwarden CLI returned a valid item".to_string(),
                 url: "https://fnox.jdx.dev/providers/bitwarden".to_string(),
@@ -295,10 +295,10 @@ impl BitwardenProvider {
             .find(|field| field.name.as_deref() == Some(field_name))
             .ok_or_else(|| FnoxError::ProviderInvalidResponse {
                 provider: "Bitwarden".to_string(),
-                details: ProviderDetails::authored(format!(
-                    "Custom field '{}' not found in item '{}'",
-                    field_name, item_name
-                )),
+                details: ProviderDetails::relayed(
+                    "Custom field not found in item",
+                    format!("field '{field_name}' in item '{item_name}'"),
+                ),
                 hint: "Check the custom field name and capitalization".to_string(),
                 url: "https://fnox.jdx.dev/providers/bitwarden".to_string(),
             })?;
@@ -307,10 +307,10 @@ impl BitwardenProvider {
             .value
             .ok_or_else(|| FnoxError::ProviderInvalidResponse {
                 provider: "Bitwarden".to_string(),
-                details: ProviderDetails::authored(format!(
-                    "Custom field '{}' in item '{}' has no value",
-                    field_name, item_name
-                )),
+                details: ProviderDetails::relayed(
+                    "Custom field in item has no value",
+                    format!("field '{field_name}' in item '{item_name}'"),
+                ),
                 hint: "Set a value for the custom field in Bitwarden".to_string(),
                 url: "https://fnox.jdx.dev/providers/bitwarden".to_string(),
             })
@@ -320,7 +320,7 @@ impl BitwardenProvider {
 #[async_trait]
 impl crate::providers::Provider for BitwardenProvider {
     async fn get_secret(&self, value: &str) -> Result<String> {
-        tracing::debug!("Getting secret '{}' from Bitwarden", value);
+        tracing::debug!("Getting secret from Bitwarden");
 
         // Parse value as "item/field" or just "item"
         // Default field is "password" if not specified
@@ -387,11 +387,11 @@ mod tests {
             .extract_custom_field("Database", "Missing", r#"{"fields": []}"#)
             .unwrap_err();
 
-        assert!(
-            error
-                .to_string()
-                .contains("Custom field 'Missing' not found")
-        );
+        let FnoxError::ProviderInvalidResponse { details, .. } = &error else {
+            panic!("expected ProviderInvalidResponse, got {error:?}");
+        };
+        assert!(error.to_string().contains("Custom field not found in item"));
+        assert!(details.contains("field 'Missing' in item 'Database'"));
     }
 
     #[test]

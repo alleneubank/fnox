@@ -155,10 +155,7 @@ impl BitwardenSecretsManagerProvider {
         if !matches!(field_name, "value" | "key" | "note") {
             return Err(FnoxError::ProviderInvalidResponse {
                 provider: "Bitwarden Secrets Manager".to_string(),
-                details: ProviderDetails::authored(format!(
-                    "Unknown field '{}' in secret reference",
-                    field_name
-                )),
+                details: ProviderDetails::relayed("Unknown field in secret reference", field_name),
                 hint: "Supported fields: value, key, note".to_string(),
                 url: URL.to_string(),
             });
@@ -171,10 +168,7 @@ impl BitwardenSecretsManagerProvider {
             .map(|s| s.to_string())
             .ok_or_else(|| FnoxError::ProviderInvalidResponse {
                 provider: "Bitwarden Secrets Manager".to_string(),
-                details: ProviderDetails::authored(format!(
-                    "Field '{}' not found in secret",
-                    field_name
-                )),
+                details: ProviderDetails::relayed("Field not found in secret", field_name),
                 hint: "Supported fields: value, key, note".to_string(),
                 url: URL.to_string(),
             })
@@ -188,7 +182,7 @@ impl crate::providers::Provider for BitwardenSecretsManagerProvider {
     }
 
     async fn get_secret(&self, value: &str) -> Result<String> {
-        tracing::debug!("Getting secret '{}' from Bitwarden Secrets Manager", value);
+        tracing::debug!("Getting secret from Bitwarden Secrets Manager");
         let secrets = self.list_secrets().await?;
         Self::resolve_reference(&secrets, value)
     }
@@ -252,7 +246,7 @@ impl crate::providers::Provider for BitwardenSecretsManagerProvider {
                     hint: "Unexpected response from bws CLI".to_string(),
                     url: URL.to_string(),
                 })?;
-            tracing::debug!("Editing existing BSM secret '{}' ({})", key, id);
+            tracing::debug!("Editing existing BSM secret");
             self.execute_bws_command(&["secret", "edit", id, "--value", value])
                 .await?;
         } else {

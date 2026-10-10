@@ -59,10 +59,10 @@ pub async fn run(
         .await
         .map_err(|_| FnoxError::ProviderCliFailed {
             provider: provider.to_string(),
-            details: ProviderDetails::authored(format!(
+            details: ProviderDetails::authored_number(
                 "credential_command timed out after {}s",
-                timeout.as_secs()
-            )),
+                timeout.as_secs(),
+            ),
             hint: "Check that credential_command completes in time".to_string(),
             url: url.to_string(),
         })?

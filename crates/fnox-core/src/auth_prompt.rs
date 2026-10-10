@@ -7,6 +7,7 @@ use crate::config::Config;
 use crate::error::{FnoxError, Result};
 use crate::providers::ProviderConfig;
 use demand::Confirm;
+use std::io::IsTerminal;
 use std::process::Command;
 
 /// Prompts the user to run an auth command and executes it if they agree.
@@ -71,32 +72,39 @@ pub fn prompt_and_run_auth(
     }
 }
 
-/// The command's first word, with `…` marking omitted arguments.
+/// The command's program, skipping leading `NAME=value` assignments, with `…`
+/// marking anything omitted.
 fn command_program(command: &str) -> String {
-    let mut words = command.split_whitespace();
-    let program = words.next().unwrap_or_default();
-    match words.next() {
-        Some(_) => format!("{program} …"),
-        None => program.to_string(),
+    let words: Vec<&str> = command.split_whitespace().collect();
+    let program_index = words.iter().position(|word| !word.contains('='));
+    match program_index {
+        Some(index) if index == 0 && words.len() == 1 => words[0].to_string(),
+        Some(index) => format!("{} …", words[index]),
+        None => "…".to_string(),
     }
 }
 
-// WAIVER(provider output stays off stderr): the auth command's stdout is relayed
-// to stderr. It runs only after the user confirms in a TTY, and device-code
-// logins (aws sso login, az login) print the code the user must enter there.
-// Permanent — dropping it breaks those logins.
+// WAIVER(provider output stays off stderr): when stderr is a terminal, the auth
+// command's stdout is shown there, so a token it prints (bw unlock, op signin)
+// reaches the screen of the user who just confirmed running it, as if they had
+// run it themselves. aws sso login prints its device code on stdout, so
+// dropping it would break that login. When stderr is not a terminal, stdout is
+// discarded. Permanent — the only alternative breaks device-code logins.
 fn run_auth_command(auth_command: &str) -> std::io::Result<std::process::ExitStatus> {
-    if cfg!(target_os = "windows") {
-        Command::new("cmd")
-            .args(["/C", auth_command])
-            .stdout(std::io::stderr())
-            .status()
+    let (shell, flag) = if cfg!(target_os = "windows") {
+        ("cmd", "/C")
     } else {
-        Command::new("sh")
-            .args(["-c", auth_command])
-            .stdout(std::io::stderr())
-            .status()
-    }
+        ("sh", "-c")
+    };
+    let stdout = if std::io::stderr().is_terminal() {
+        std::process::Stdio::from(std::io::stderr())
+    } else {
+        std::process::Stdio::null()
+    };
+    Command::new(shell)
+        .args([flag, auth_command])
+        .stdout(stdout)
+        .status()
 }
 
 #[cfg(test)]
@@ -116,6 +124,17 @@ mod tests {
     }
 
     // Integration-level: non-auth errors return Ok(false) from prompt_and_run_auth
+    #[test]
+    fn command_program_hides_arguments_and_assignments() {
+        assert_eq!(command_program("op signin"), "op …");
+        assert_eq!(command_program("aws"), "aws");
+        assert_eq!(
+            command_program("TOKEN=fake-token login-helper --x"),
+            "login-helper …"
+        );
+        assert_eq!(command_program("TOKEN=fake-token"), "…");
+    }
+
     #[test]
     fn non_auth_error_skips_prompt() {
         let config = Config::new();
@@ -145,7 +164,7 @@ mod tests {
     }
 
     #[test]
-    fn auth_command_stdout_is_redirected_to_stderr() {
+    fn auth_command_stdout_is_dropped_when_stderr_is_not_a_terminal() {
         const CHILD_ENV: &str = "FNOX_TEST_AUTH_COMMAND_STDOUT";
         const MARKER: &str = "auth-command-output-marker";
 
@@ -157,7 +176,7 @@ mod tests {
         let output = Command::new(std::env::current_exe().unwrap())
             .args([
                 "--exact",
-                "auth_prompt::tests::auth_command_stdout_is_redirected_to_stderr",
+                "auth_prompt::tests::auth_command_stdout_is_dropped_when_stderr_is_not_a_terminal",
                 "--nocapture",
             ])
             .env(CHILD_ENV, "1")
@@ -166,6 +185,6 @@ mod tests {
 
         assert!(output.status.success());
         assert!(!String::from_utf8_lossy(&output.stdout).contains(MARKER));
-        assert!(String::from_utf8_lossy(&output.stderr).contains(MARKER));
+        assert!(!String::from_utf8_lossy(&output.stderr).contains(MARKER));
     }
 }

@@ -212,7 +212,7 @@ impl InfisicalProvider {
 #[async_trait]
 impl crate::providers::Provider for InfisicalProvider {
     async fn get_secret(&self, value: &str) -> Result<String> {
-        tracing::debug!("Getting secret '{}' from Infisical", value);
+        tracing::debug!("Getting secret from Infisical");
 
         // Build the command: infisical secrets get <name> --output json
         // Using JSON format allows us to distinguish between "not found" and "empty value"
@@ -256,8 +256,8 @@ impl crate::providers::Provider for InfisicalProvider {
                 FnoxError::ProviderInvalidResponse {
                     provider: PROVIDER_NAME.to_string(),
                     details: ProviderDetails::relayed(
-                        format!("Failed to parse response for '{}'", value),
-                        &e,
+                        "Failed to parse response",
+                        format!("{}: {}", value, e),
                     ),
                     hint: "The Infisical CLI returned an unexpected response format".to_string(),
                     url: PROVIDER_URL.to_string(),

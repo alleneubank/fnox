@@ -67,9 +67,10 @@ fn deleted_secret_version(metadata: &str) -> Result<Option<u64>> {
         .and_then(|versions| versions.get(current_version.to_string()))
         .ok_or_else(|| FnoxError::ProviderInvalidResponse {
             provider: PROVIDER_NAME.to_string(),
-            details: ProviderDetails::authored(format!(
-                "Vault metadata did not contain version {current_version}"
-            )),
+            details: ProviderDetails::authored_number(
+                "Vault metadata did not contain version {}",
+                current_version,
+            ),
             hint: "Check that the Vault CLI returned KV v2 metadata".to_string(),
             url: URL.to_string(),
         })?;
@@ -178,12 +179,12 @@ impl HashiCorpVaultProvider {
             )
         })?;
 
-        tracing::debug!("Setting VAULT_ADDR to '{}'", address);
+        tracing::debug!("Setting VAULT_ADDR");
         cmd.env("VAULT_ADDR", &address);
 
         // Set VAULT_NAMESPACE if provided
         if let Some(namespace) = self.namespace.clone().or_else(vault_namespace) {
-            tracing::debug!("Setting VAULT_NAMESPACE to '{}'", namespace);
+            tracing::debug!("Setting VAULT_NAMESPACE");
             cmd.env("VAULT_NAMESPACE", namespace);
         }
 
@@ -315,7 +316,7 @@ impl crate::providers::Provider for HashiCorpVaultProvider {
     }
 
     async fn get_secret(&self, value: &str) -> Result<String> {
-        tracing::debug!("Getting secret '{}' from HashiCorp Vault", value);
+        tracing::debug!("Getting secret from HashiCorp Vault");
 
         let (secret_name, field_name) = parse_secret_reference(value)?;
 
@@ -337,8 +338,8 @@ impl crate::providers::Provider for HashiCorpVaultProvider {
 
     async fn test_connection(&self) -> Result<()> {
         let address = self.get_address();
-        if let Some(addr) = address {
-            tracing::debug!("Testing connection to Vault at {}", addr);
+        if address.is_some() {
+            tracing::debug!("Testing connection to Vault");
         } else {
             tracing::debug!(
                 "Testing connection to Vault (address not specified in config or environment)"
@@ -356,7 +357,7 @@ impl crate::providers::Provider for HashiCorpVaultProvider {
         let (secret_name, field_name) = parse_secret_reference(key)?;
         let secret_path = self.get_secret_path(secret_name);
 
-        tracing::debug!("Writing secret '{}' to HashiCorp Vault", secret_path);
+        tracing::debug!("Writing secret to HashiCorp Vault");
 
         // Patch explicit fields so updating one value does not replace its siblings.
         // Passing values through stdin prevents Vault from interpreting leading
@@ -414,7 +415,7 @@ impl crate::providers::Provider for HashiCorpVaultProvider {
                 .await?;
         }
 
-        tracing::debug!("Successfully wrote secret '{}' to Vault", secret_path);
+        tracing::debug!("Successfully wrote secret to Vault");
 
         // Return the key name to store in config
         Ok(key.to_string())

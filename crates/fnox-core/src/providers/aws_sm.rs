@@ -210,10 +210,7 @@ impl AwsSecretsManagerProvider {
             .secret_string()
             .ok_or_else(|| FnoxError::ProviderInvalidResponse {
                 provider: "AWS Secrets Manager".to_string(),
-                details: ProviderDetails::authored(format!(
-                    "Secret '{}' has no string value",
-                    secret_name
-                )),
+                details: ProviderDetails::relayed("Secret has no string value", secret_name),
                 hint: "Binary secrets are not supported".to_string(),
                 url: "https://fnox.jdx.dev/providers/aws-sm".to_string(),
             })
@@ -233,7 +230,7 @@ impl AwsSecretsManagerProvider {
             .await
         {
             Ok(_) => {
-                tracing::debug!("Updated secret '{}' in AWS Secrets Manager", secret_name);
+                tracing::debug!("Updated secret in AWS Secrets Manager");
                 Ok(())
             }
             Err(e) => {
@@ -246,7 +243,7 @@ impl AwsSecretsManagerProvider {
                         .send()
                         .await
                         .map_err(|e| aws_error_to_fnox(&e, secret_name))?;
-                    tracing::debug!("Created secret '{}' in AWS Secrets Manager", secret_name);
+                    tracing::debug!("Created secret in AWS Secrets Manager");
                     Ok(())
                 } else {
                     Err(aws_error_to_fnox(&e, secret_name))
@@ -361,10 +358,10 @@ impl crate::providers::Provider for AwsSecretsManagerProvider {
                                         key.clone(),
                                         Err(FnoxError::ProviderInvalidResponse {
                                             provider: "AWS Secrets Manager".to_string(),
-                                            details: ProviderDetails::authored(format!(
-                                                "Secret '{}' has no string value",
-                                                secret_name
-                                            )),
+                                            details: ProviderDetails::relayed(
+                                                "Secret has no string value",
+                                                &secret_name,
+                                            ),
                                             hint: "Binary secrets are not supported".to_string(),
                                             url: "https://fnox.jdx.dev/providers/aws-sm"
                                                 .to_string(),
@@ -400,8 +397,8 @@ impl crate::providers::Provider for AwsSecretsManagerProvider {
                                         Err(FnoxError::ProviderApiError {
                                             provider: "AWS Secrets Manager".to_string(),
                                             details: ProviderDetails::relayed(
-                                                format!("Failed to get '{}'", lookup_name),
-                                                &error_msg,
+                                                "Failed to get secret",
+                                                format!("{}: {}", lookup_name, error_msg),
                                             ),
                                             hint:
                                                 "Check that the secret exists and you have access"

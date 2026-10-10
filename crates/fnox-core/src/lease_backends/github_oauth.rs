@@ -273,9 +273,9 @@ impl GitHubOauthBackend {
             })?;
 
         if let Some(err) = &response.error {
+            // The description is GitHub's free text, so only the error code is logged.
             tracing::debug!(
                 error = err.as_str(),
-                description = response.error_description.as_deref().unwrap_or(""),
                 "GitHub OAuth refresh token rejected; falling back to device flow"
             );
             return Ok(None);

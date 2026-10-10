@@ -43,11 +43,8 @@ impl KeychainProvider {
             _ => FnoxError::ProviderApiError {
                 provider: "Keychain".to_string(),
                 details: ProviderDetails::relayed(
-                    format!(
-                        "Failed to create entry for service '{}', key '{}'",
-                        self.service, full_key
-                    ),
-                    &e,
+                    "Failed to create keychain entry",
+                    format!("service '{}', key '{}': {e}", self.service, full_key),
                 ),
                 hint: "Check that the keychain is accessible".to_string(),
                 url: "https://fnox.jdx.dev/providers/keychain".to_string(),
@@ -82,11 +79,8 @@ impl KeychainProvider {
             .map_err(|e| FnoxError::ProviderApiError {
                 provider: "Keychain".to_string(),
                 details: ProviderDetails::relayed(
-                    format!(
-                        "Failed to store secret '{}' (service: '{}')",
-                        set_full_key, set_service
-                    ),
-                    &e,
+                    "Failed to store secret",
+                    format!("'{set_full_key}' (service: '{set_service}'): {e}"),
                 ),
                 hint: "Check that the keychain is accessible and writable".to_string(),
                 url: "https://fnox.jdx.dev/providers/keychain".to_string(),
@@ -186,8 +180,8 @@ impl crate::providers::Provider for KeychainProvider {
         .map_err(|e: keyring_core::Error| FnoxError::ProviderAuthFailed {
             provider: "Keychain".to_string(),
             details: ProviderDetails::relayed(
-                format!("Failed to access keychain (service: '{service}')"),
-                &e,
+                "Failed to access keychain",
+                format!("service '{service}': {e}"),
             ),
             hint: "Check that you have permission to access the OS keychain".to_string(),
             url: "https://fnox.jdx.dev/providers/keychain".to_string(),

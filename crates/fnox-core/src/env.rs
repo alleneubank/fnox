@@ -16,9 +16,10 @@ pub fn is_non_interactive() -> bool {
     NON_INTERACTIVE.load(Ordering::Acquire)
 }
 
-/// Whether provider errors may show the text a provider wrote (CLI stderr,
-/// API messages). Off by default because that text can carry secret values;
-/// `--verbose` turns it on.
+/// Whether provider errors may show relayed details (provider output and names
+/// from config or secret references). Off by default because that text can
+/// carry secret values; `--verbose` turns it on for commands that report only
+/// to the user who ran them.
 static PROVIDER_OUTPUT_SHOWN: AtomicBool = AtomicBool::new(false);
 
 pub fn set_provider_output_shown(value: bool) {

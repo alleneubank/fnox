@@ -35,9 +35,10 @@ fn scope_for(host: &str) -> Option<&'static str> {
     })
 }
 
-fn invalid_endpoint(endpoint: &str, reason: &str) -> FnoxError {
+/// The endpoint itself is not echoed: a URL can carry credentials.
+fn invalid_endpoint(reason: &str) -> FnoxError {
     FnoxError::Config(format!(
-        "{PROVIDER_NAME}: endpoint '{endpoint}' {reason}. \
+        "{PROVIDER_NAME}: the configured endpoint {reason}. \
          Expected an App Configuration store such as https://my-store.azconfig.io"
     ))
 }
@@ -79,15 +80,16 @@ pub struct AzureAppConfigurationProvider {
 
 impl AzureAppConfigurationProvider {
     pub fn new(endpoint: String, label: Option<String>, prefix: Option<String>) -> Result<Self> {
-        let url = Url::parse(&endpoint).map_err(|e| invalid_endpoint(&endpoint, &e.to_string()))?;
+        let url = Url::parse(&endpoint)
+            .map_err(|e| invalid_endpoint(&format!("is not a valid URL ({e})")))?;
         if url.scheme() != "https" {
-            return Err(invalid_endpoint(&endpoint, "must use https"));
+            return Err(invalid_endpoint("must use https"));
         }
         // host_str() ignores userinfo, so https://store.azconfig.io@example.com is example.com.
         let scope = url
             .host_str()
             .and_then(scope_for)
-            .ok_or_else(|| invalid_endpoint(&endpoint, "is not an App Configuration domain"))?;
+            .ok_or_else(|| invalid_endpoint("is not an App Configuration domain"))?;
 
         // App Configuration has no empty label: the unlabelled key-value is the \0 label.
         Ok(Self {
@@ -134,7 +136,7 @@ impl AzureAppConfigurationProvider {
         if status.as_u16() == 401 || status.as_u16() == 403 {
             return Err(FnoxError::ProviderAuthFailed {
                 provider: PROVIDER_NAME.to_string(),
-                details: ProviderDetails::relayed(format!("HTTP {}", status), &body),
+                details: ProviderDetails::relayed_number("HTTP {}", status.as_u16(), &body),
                 hint: "Grant the 'App Configuration Data Reader' role and check the store's network access rules"
                     .to_string(),
                 url: PROVIDER_URL.to_string(),
@@ -142,7 +144,7 @@ impl AzureAppConfigurationProvider {
         }
         Err(FnoxError::ProviderApiError {
             provider: PROVIDER_NAME.to_string(),
-            details: ProviderDetails::relayed(format!("HTTP {}", status), &body),
+            details: ProviderDetails::relayed_number("HTTP {}", status.as_u16(), &body),
             hint: "Check the store endpoint and your configuration".to_string(),
             url: PROVIDER_URL.to_string(),
         })
@@ -218,7 +220,7 @@ impl crate::providers::Provider for AzureAppConfigurationProvider {
 
         kv.value.ok_or_else(|| FnoxError::ProviderInvalidResponse {
             provider: PROVIDER_NAME.to_string(),
-            details: ProviderDetails::authored(format!("Key '{}' has no value", key)),
+            details: ProviderDetails::relayed("Key has no value", key),
             hint: "The key exists but has no value set".to_string(),
             url: PROVIDER_URL.to_string(),
         })
@@ -239,7 +241,7 @@ impl crate::providers::Provider for AzureAppConfigurationProvider {
         if !response.status().is_success() {
             return Err(FnoxError::ProviderApiError {
                 provider: PROVIDER_NAME.to_string(),
-                details: ProviderDetails::authored(format!("HTTP {}", response.status())),
+                details: ProviderDetails::authored_number("HTTP {}", response.status().as_u16()),
                 hint: "Check the store endpoint".to_string(),
                 url: PROVIDER_URL.to_string(),
             });

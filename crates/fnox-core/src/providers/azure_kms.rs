@@ -249,8 +249,8 @@ impl crate::providers::Provider for AzureKeyVaultProvider {
                 FnoxError::ProviderApiError {
                     provider: "Azure Key Vault".to_string(),
                     details: ProviderDetails::relayed(
-                        format!("Failed to access key '{}'", self.key_name),
-                        &err_str,
+                        "Failed to access key",
+                        format!("{}: {}", self.key_name, err_str),
                     ),
                     hint: "Check your Azure Key Vault configuration".to_string(),
                     url: URL.to_string(),

@@ -484,7 +484,11 @@ impl LeaseBackend for CloudflareBackend {
             if status.as_u16() != 404 {
                 return Err(FnoxError::ProviderApiError {
                     provider: "Cloudflare".to_string(),
-                    details: ProviderDetails::relayed(format!("HTTP {}", status), &body_text),
+                    details: ProviderDetails::relayed_number(
+                        "HTTP {}",
+                        status.as_u16(),
+                        &body_text,
+                    ),
                     hint: "Failed to revoke Cloudflare API token".to_string(),
                     url: URL.to_string(),
                 });

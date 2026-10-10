@@ -52,11 +52,10 @@ impl CommandBackend {
             .await
             .map_err(|_| FnoxError::ProviderCliFailed {
                 provider: "Command".to_string(),
-                details: ProviderDetails::authored(format!(
-                    "{} timed out after {}s",
-                    action,
-                    self.timeout.as_secs()
-                )),
+                details: ProviderDetails::authored_number(
+                    "command timed out after {}s",
+                    self.timeout.as_secs(),
+                ),
                 hint: format!("Check that the {action} completes in time, or increase the timeout"),
                 url: URL.to_string(),
             })?

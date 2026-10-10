@@ -47,7 +47,7 @@ impl KeeperSecretsManagerProvider {
         {
             return Err(FnoxError::ProviderAuthFailed {
                 provider: PROVIDER_NAME.to_string(),
-                details: ProviderDetails::authored(format!("Configuration file '{}' does not exist", path)),
+                details: ProviderDetails::relayed("Configuration file does not exist", path),
                 hint: "Download a KSM configuration file, set KSM_CONFIG, or provide a one-time KSM_TOKEN for bootstrap"
                     .to_string(),
                 url: PROVIDER_URL.to_string(),

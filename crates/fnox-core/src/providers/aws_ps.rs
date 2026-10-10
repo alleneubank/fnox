@@ -184,10 +184,7 @@ impl AwsParameterStoreProvider {
             .and_then(|p| p.value())
             .ok_or_else(|| FnoxError::ProviderInvalidResponse {
                 provider: "AWS Parameter Store".to_string(),
-                details: ProviderDetails::authored(format!(
-                    "Parameter '{}' has no value",
-                    parameter_name
-                )),
+                details: ProviderDetails::relayed("Parameter has no value", parameter_name),
                 hint: "The parameter exists but has no value set".to_string(),
                 url: URL.to_string(),
             })
@@ -244,10 +241,10 @@ impl AwsParameterStoreProvider {
                                     key.clone(),
                                     Err(FnoxError::ProviderInvalidResponse {
                                         provider: "AWS Parameter Store".to_string(),
-                                        details: ProviderDetails::authored(format!(
-                                            "Parameter '{}' has no value",
-                                            name
-                                        )),
+                                        details: ProviderDetails::relayed(
+                                            "Parameter has no value",
+                                            name,
+                                        ),
                                         hint: "The parameter exists but has no value set"
                                             .to_string(),
                                         url: URL.to_string(),

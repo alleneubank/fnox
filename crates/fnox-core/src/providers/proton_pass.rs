@@ -309,7 +309,7 @@ fn classify_cli_error(stderr: &str, secret_ref: Option<&str>) -> FnoxError {
 #[async_trait]
 impl crate::providers::Provider for ProtonPassProvider {
     async fn get_secret(&self, value: &str) -> Result<String> {
-        tracing::debug!("Getting secret '{}' from Proton Pass", value);
+        tracing::debug!("Getting secret from Proton Pass");
 
         let value = value.trim();
 
@@ -355,7 +355,7 @@ impl crate::providers::Provider for ProtonPassProvider {
         }
 
         let reference = self.value_to_reference(value)?;
-        tracing::debug!("Reading Proton Pass secret: {}", reference);
+        tracing::debug!("Reading Proton Pass secret");
 
         // Use 'pass-cli item view' to fetch the secret
         self.execute_pass_cli_command(&["item", "view", &reference], Some(&reference))
@@ -366,9 +366,7 @@ impl crate::providers::Provider for ProtonPassProvider {
         tracing::debug!("Testing connection to Proton Pass");
 
         // Use 'pass-cli test' for connection testing
-        let output = self.execute_pass_cli_command(&["test"], None).await?;
-
-        tracing::debug!("Proton Pass test output: {}", output);
+        self.execute_pass_cli_command(&["test"], None).await?;
 
         Ok(())
     }

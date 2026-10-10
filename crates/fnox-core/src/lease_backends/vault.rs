@@ -249,7 +249,7 @@ impl LeaseBackend for VaultBackend {
             }
             return Err(FnoxError::ProviderApiError {
                 provider: "Vault".to_string(),
-                details: ProviderDetails::relayed(format!("HTTP {}", status), &body_text),
+                details: ProviderDetails::relayed_number("HTTP {}", status.as_u16(), &body_text),
                 hint: "Check secret_path and Vault configuration".to_string(),
                 url: URL.to_string(),
             });
@@ -393,7 +393,7 @@ impl LeaseBackend for VaultBackend {
             }
             return Err(FnoxError::ProviderApiError {
                 provider: "Vault".to_string(),
-                details: ProviderDetails::relayed(format!("HTTP {}", status), &body_text),
+                details: ProviderDetails::relayed_number("HTTP {}", status.as_u16(), &body_text),
                 hint: "Failed to revoke Vault lease".to_string(),
                 url: URL.to_string(),
             });

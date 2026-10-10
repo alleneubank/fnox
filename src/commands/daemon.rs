@@ -25,6 +25,11 @@ enum DaemonSubcommand {
 }
 
 impl DaemonCommand {
+    /// Whether this runs the server, whose errors go to other client processes.
+    pub fn serves_clients(&self) -> bool {
+        matches!(self.command, DaemonSubcommand::Serve)
+    }
+
     pub async fn run(&self, cli: &Cli) -> Result<()> {
         match self.command {
             DaemonSubcommand::Clear => {

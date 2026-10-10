@@ -125,7 +125,7 @@ impl LeaseBackend for GcpIamBackend {
             }
             return Err(FnoxError::ProviderApiError {
                 provider: "GCP IAM".to_string(),
-                details: ProviderDetails::relayed(format!("HTTP {}", status), &body_text),
+                details: ProviderDetails::relayed_number("HTTP {}", status.as_u16(), &body_text),
                 hint: "Check service account email and scopes".to_string(),
                 url: URL.to_string(),
             });

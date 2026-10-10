@@ -537,10 +537,9 @@ mod tests {
             Err(error) => error,
         };
 
-        assert!(
-            error
-                .to_string()
-                .contains("/home/user/project/./keeper/ksm-config.json")
-        );
+        let crate::error::FnoxError::ProviderAuthFailed { details, .. } = &error else {
+            panic!("expected ProviderAuthFailed, got {error:?}");
+        };
+        assert!(details.contains("/home/user/project/./keeper/ksm-config.json"));
     }
 }

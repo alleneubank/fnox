@@ -272,10 +272,10 @@ impl OnePasswordProvider {
 #[async_trait]
 impl crate::providers::Provider for OnePasswordProvider {
     async fn get_secret(&self, value: &str) -> Result<String> {
-        tracing::debug!("Getting secret '{}' from 1Password", value);
+        tracing::debug!("Getting secret from 1Password");
 
         let reference = self.value_to_reference(value)?;
-        tracing::debug!("Reading 1Password secret: {}", reference);
+        tracing::debug!("Reading 1Password secret");
 
         // Use 'op read' to fetch the secret
         self.execute_op_command(&["read", &reference]).await
@@ -324,7 +324,7 @@ impl crate::providers::Provider for OnePasswordProvider {
             return results;
         }
 
-        tracing::debug!("Injecting secrets with input:\n{}", input);
+        tracing::debug!("Injecting secrets with input");
 
         // Execute op inject with stdin
         match self.execute_op_inject(&input).await {
@@ -403,9 +403,7 @@ impl crate::providers::Provider for OnePasswordProvider {
         tracing::debug!("Testing connection to 1Password");
 
         // Try to get the current user as a basic connectivity test
-        let output = self.execute_op_command(&["whoami"]).await?;
-
-        tracing::debug!("1Password whoami output: {}", output);
+        self.execute_op_command(&["whoami"]).await?;
 
         Ok(())
     }

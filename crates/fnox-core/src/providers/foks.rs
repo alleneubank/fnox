@@ -369,14 +369,14 @@ impl crate::providers::Provider for FoksProvider {
 
     async fn get_secret(&self, value: &str) -> Result<String> {
         let path = self.build_secret_path(value);
-        tracing::debug!("Getting secret '{path}' from FOKS");
+        tracing::debug!("Getting secret from FOKS");
         // `foks kv get <path>` prints the value to stdout (no output file).
         self.execute_foks_kv(&["get", &path], Some(&path)).await
     }
 
     async fn put_secret(&self, key: &str, value: &str) -> Result<String> {
         let path = self.build_secret_path(key);
-        tracing::debug!("Storing secret '{path}' in FOKS");
+        tracing::debug!("Storing secret in FOKS");
 
         match self.execute_foks_kv_put_once(&path, value).await {
             Ok(()) => {}
@@ -389,7 +389,7 @@ impl crate::providers::Provider for FoksProvider {
             }
         }
 
-        tracing::debug!("Successfully stored secret '{path}' in FOKS");
+        tracing::debug!("Successfully stored secret in FOKS");
         Ok(key.to_string())
     }
 

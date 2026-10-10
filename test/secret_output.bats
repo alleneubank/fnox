@@ -26,7 +26,7 @@ fake_pass() {
 @test "get prints the value on stdout and nothing on stderr" {
 	fake_pass <<'EOF'
 #!/bin/sh
-printf 'fake-secret-value\n'
+printf 'FAKE_SECRET_VALUE\n'
 EOF
 	cat >fnox.toml <<'EOF'
 root = true
@@ -40,7 +40,7 @@ EOF
 
 	run --separate-stderr "$FNOX_BIN" get TOKEN
 	assert_success
-	assert_output "fake-secret-value"
+	assert_output "FAKE_SECRET_VALUE"
 	assert_equal "$stderr" ""
 }
 
@@ -52,17 +52,17 @@ root = true
 type = "plain"
 
 [secrets]
-NEIGHBOR = { provider = "plain", value = "fake-neighbor-value" } # fake-comment-value
-TOKEN = { provider = "missing", value = "fake-token-value" }
+NEIGHBOR = { provider = "plain", value = "FAKE_NEIGHBOR_VALUE" } # FAKE_COMMENT_VALUE
+TOKEN = { provider = "missing", value = "FAKE_TOKEN_VALUE" }
 EOF
 
 	run --separate-stderr "$FNOX_BIN" get TOKEN
 	assert_failure
 	assert_output ""
 	[[ $stderr == *"Provider 'missing' not configured"* ]]
-	[[ $stderr != *"fake-neighbor-value"* ]]
-	[[ $stderr != *"fake-comment-value"* ]]
-	[[ $stderr != *"fake-token-value"* ]]
+	[[ $stderr != *"FAKE_NEIGHBOR_VALUE"* ]]
+	[[ $stderr != *"FAKE_COMMENT_VALUE"* ]]
+	[[ $stderr != *"FAKE_TOKEN_VALUE"* ]]
 }
 
 @test "config parse error does not echo values from the config file" {
@@ -70,14 +70,14 @@ EOF
 root = true
 
 [secrets]
-NEIGHBOR = { provider = "plain", value = "fake-neighbor-value" }
-TOKEN = { provider = "plain", value = "fake-token-value" } trailing
+NEIGHBOR = { provider = "plain", value = "FAKE_NEIGHBOR_VALUE" }
+TOKEN = { provider = "plain", value = "FAKE_TOKEN_VALUE" } trailing
 EOF
 
 	run --separate-stderr "$FNOX_BIN" get TOKEN
 	assert_failure
-	[[ $stderr != *"fake-neighbor-value"* ]]
-	[[ $stderr != *"fake-token-value"* ]]
+	[[ $stderr != *"FAKE_NEIGHBOR_VALUE"* ]]
+	[[ $stderr != *"FAKE_TOKEN_VALUE"* ]]
 }
 
 @test "config type errors do not echo the offending value" {
@@ -85,13 +85,13 @@ EOF
 root = true
 
 [secrets]
-TOKEN = { provider = "plain", value = "x", env = "fake-env-value" }
+TOKEN = { provider = "plain", value = "x", env = "FAKE_ENV_VALUE" }
 EOF
 
 	run --separate-stderr "$FNOX_BIN" get TOKEN
 	assert_failure
 	[[ $stderr == *"fnox.toml"* ]]
-	[[ $stderr != *"fake-env-value"* ]]
+	[[ $stderr != *"FAKE_ENV_VALUE"* ]]
 }
 
 @test "malformed config lines do not echo values" {
@@ -99,21 +99,63 @@ EOF
 root = true
 
 [secrets]
-A = { provider = "plain", value = "fake-dotted-value". }
+A = { provider = "plain", value = "FAKE_DOTTED_VALUE". }
 EOF
 	run --separate-stderr "$FNOX_BIN" get A
 	assert_failure
-	[[ $stderr != *"fake-dotted-value"* ]]
+	[[ $stderr != *"FAKE_DOTTED_VALUE"* ]]
 
 	cat >fnox.toml <<'EOF'
 root = true
 
 [secrets]
-A = { provider = "plain", value = fake-bare-value }
+A = { provider = "plain", value = FAKE_BARE_VALUE }
 EOF
 	run --separate-stderr "$FNOX_BIN" get A
 	assert_failure
-	[[ $stderr != *"fake-bare-value"* ]]
+	[[ $stderr != *"FAKE_BARE_VALUE"* ]]
+}
+
+@test "parser messages and continued lines do not echo values" {
+	cat >fnox.toml <<'EOF'
+root = true
+
+[secrets]
+TOKEN = { provider = "plain", value = "x", if_missing = "x`FAKE_BACKTICK_VALUE" }
+EOF
+	run --separate-stderr "$FNOX_BIN" get TOKEN
+	assert_failure
+	[[ $stderr != *"FAKE_BACKTICK_VALUE"* ]]
+
+	printf 'root = true\n\n[secrets]\nTOKEN =\n"FAKE_CONTINUED_VALUE".oops\n' >fnox.toml
+	run --separate-stderr "$FNOX_BIN" get TOKEN
+	assert_failure
+	[[ $stderr != *"FAKE_CONTINUED_VALUE"* ]]
+}
+
+@test "secret references and endpoint credentials stay out of provider errors" {
+	cat >fnox.toml <<'EOF'
+root = true
+
+[providers.op]
+type = "1password"
+
+[providers.appconfig]
+type = "azure-ac"
+endpoint = "http://user:FAKE_URL_SECRET@example.invalid"
+
+[secrets]
+REF = { provider = "op", value = "FAKE_REF_VALUE", if_missing = "error" }
+URL = { provider = "appconfig", value = "key", if_missing = "error" }
+EOF
+	run --separate-stderr "$FNOX_BIN" --non-interactive get REF
+	assert_failure
+	[[ $stderr == *"hidden"* ]]
+	[[ $stderr != *"FAKE_REF_VALUE"* ]]
+
+	run --separate-stderr "$FNOX_BIN" --non-interactive get URL
+	assert_failure
+	[[ $stderr != *"FAKE_URL_SECRET"* ]]
 }
 
 @test "import parse errors do not echo the input" {
@@ -124,20 +166,25 @@ root = true
 type = "plain"
 EOF
 
-	printf '{"TOKEN": "fake-json-value",}' >input.json
+	printf '{"TOKEN": "FAKE_JSON_VALUE",}' >input.json
 	run --separate-stderr "$FNOX_BIN" import json --dry-run -p plain -i input.json
 	assert_failure
-	[[ $stderr != *"fake-json-value"* ]]
+	[[ $stderr != *"FAKE_JSON_VALUE"* ]]
 
-	printf 'TOKEN = "fake-toml-value" trailing\n' >input.toml
+	printf '{"PASSWORD": "!@#$%%^&*()_+=", "oops":}' >input.json
+	run --separate-stderr "$FNOX_BIN" import json --dry-run -p plain -i input.json
+	assert_failure
+	[[ $stderr != *'!@#$%^&*()_+='* ]]
+
+	printf 'TOKEN = "FAKE_TOML_VALUE" trailing\n' >input.toml
 	run --separate-stderr "$FNOX_BIN" import toml --dry-run -p plain -i input.toml
 	assert_failure
-	[[ $stderr != *"fake-toml-value"* ]]
+	[[ $stderr != *"FAKE_TOML_VALUE"* ]]
 
-	printf 'TOKEN: "fake-yaml-value\n  bad: [' >input.yaml
+	printf 'TOKEN: "FAKE_YAML_VALUE\n  bad: [' >input.yaml
 	run --separate-stderr "$FNOX_BIN" import yaml --dry-run -p plain -i input.yaml
 	assert_failure
-	[[ $stderr != *"fake-yaml-value"* ]]
+	[[ $stderr != *"FAKE_YAML_VALUE"* ]]
 }
 
 @test "edit does not echo decrypted values when the edited file is invalid" {
@@ -148,17 +195,17 @@ root = true
 type = "plain"
 
 [secrets]
-TOKEN = { provider = "plain", value = "fake-edit-value" }
+TOKEN = { provider = "plain", value = "FAKE_EDIT_VALUE" }
 EOF
 	cat >"$TEST_TEMP_DIR/bin/break-toml" <<'EOF'
 #!/bin/sh
-printf 'BROKEN = "fake-edit-value" trailing\n' >>"$1"
+printf 'BROKEN = "FAKE_EDIT_VALUE" trailing\n' >>"$1"
 EOF
 	chmod +x "$TEST_TEMP_DIR/bin/break-toml"
 
 	EDITOR=break-toml run --separate-stderr "$FNOX_BIN" edit
 	assert_failure
-	[[ $stderr != *"fake-edit-value"* ]]
+	[[ $stderr != *"FAKE_EDIT_VALUE"* ]]
 }
 
 @test "daemon get fails non-zero when the provider fails in non-interactive mode" {
@@ -189,7 +236,7 @@ EOF
 failing_pass_config() {
 	fake_pass <<'EOF'
 #!/bin/sh
-echo 'Error: could not read fake-secret-value' >&2
+echo 'Error: could not read FAKE_SECRET_VALUE' >&2
 exit 1
 EOF
 	cat >fnox.toml <<EOF
@@ -214,8 +261,8 @@ EOF
 			run --separate-stderr "$FNOX_BIN" --non-interactive $cmd
 			assert_failure
 			[[ $stderr == *"hidden"* ]]
-			[[ $output != *"fake-secret-value"* ]]
-			[[ $stderr != *"fake-secret-value"* ]]
+			[[ $output != *"FAKE_SECRET_VALUE"* ]]
+			[[ $stderr != *"FAKE_SECRET_VALUE"* ]]
 		done
 	done
 }
@@ -226,13 +273,13 @@ EOF
 	run --separate-stderr "$FNOX_BIN" --non-interactive --verbose get TOKEN
 	assert_failure
 	assert_output ""
-	[[ $stderr == *"could not read fake-secret-value"* ]]
+	[[ $stderr == *"could not read FAKE_SECRET_VALUE"* ]]
 }
 
 @test "check KEY reports resolvability without printing the value" {
 	fake_pass <<'EOF'
 #!/bin/sh
-printf 'fake-secret-value\n'
+printf 'FAKE_SECRET_VALUE\n'
 EOF
 	cat >fnox.toml <<'EOF'
 root = true
@@ -247,14 +294,14 @@ EOF
 	run --separate-stderr "$FNOX_BIN" check TOKEN
 	assert_success
 	assert_output --partial "TOKEN"
-	[[ $output != *"fake-secret-value"* ]]
-	[[ $stderr != *"fake-secret-value"* ]]
+	[[ $output != *"FAKE_SECRET_VALUE"* ]]
+	[[ $stderr != *"FAKE_SECRET_VALUE"* ]]
 }
 
 @test "check KEY fails without relaying provider output" {
 	fake_pass <<'EOF'
 #!/bin/sh
-echo 'Error: could not read fake-secret-value' >&2
+echo 'Error: could not read FAKE_SECRET_VALUE' >&2
 exit 1
 EOF
 	cat >fnox.toml <<'EOF'
@@ -270,8 +317,8 @@ EOF
 	run --separate-stderr "$FNOX_BIN" check TOKEN
 	assert_failure
 	[[ $stderr == *"TOKEN"* ]]
-	[[ $output != *"fake-secret-value"* ]]
-	[[ $stderr != *"fake-secret-value"* ]]
+	[[ $output != *"FAKE_SECRET_VALUE"* ]]
+	[[ $stderr != *"FAKE_SECRET_VALUE"* ]]
 }
 
 @test "check KEY fails for an undefined secret" {

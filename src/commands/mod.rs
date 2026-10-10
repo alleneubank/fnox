@@ -286,6 +286,46 @@ pub fn completion_app() -> usage_rs::complete::App<'static> {
 }
 
 impl Commands {
+    /// Whether this command's errors reach only the user who invoked it.
+    ///
+    /// Servers hand their errors to other processes (daemon clients, MCP
+    /// agents, proxied programs), so `--verbose` must not make them include
+    /// relayed provider output there.
+    pub fn reports_only_to_invoker(&self) -> bool {
+        match self {
+            Commands::Daemon(cmd) => !cmd.serves_clients(),
+            Commands::Mcp(_) | Commands::Proxy(_) => false,
+            Commands::Activate(_)
+            | Commands::Check(_)
+            | Commands::CiRedact(_)
+            | Commands::Completion(_)
+            | Commands::ConfigFiles(_)
+            | Commands::Deactivate(_)
+            | Commands::Doctor(_)
+            | Commands::Edit(_)
+            | Commands::Exec(_)
+            | Commands::Export(_)
+            | Commands::Get(_)
+            | Commands::HookEnv(_)
+            | Commands::Import(_)
+            | Commands::Init(_)
+            | Commands::Lease(_)
+            | Commands::List(_)
+            | Commands::Profiles(_)
+            | Commands::Provider(_)
+            | Commands::Reencrypt(_)
+            | Commands::Remove(_)
+            | Commands::Scan(_)
+            | Commands::Schema(_)
+            | Commands::Set(_)
+            | Commands::Sponsors(_)
+            | Commands::Sync(_)
+            | Commands::Tui(_)
+            | Commands::Usage(_)
+            | Commands::Version(_) => true,
+        }
+    }
+
     pub async fn run(&self, cli: &Cli) -> Result<()> {
         match self {
             // Commands that don't need config

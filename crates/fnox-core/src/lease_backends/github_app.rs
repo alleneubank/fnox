@@ -87,8 +87,8 @@ impl GitHubAppBackend {
             std::fs::read_to_string(&expanded).map_err(|e| FnoxError::ProviderAuthFailed {
                 provider: "GitHub App".to_string(),
                 details: ProviderDetails::relayed(
-                    format!("Failed to read private key from {expanded}"),
-                    &e,
+                    "Failed to read private key",
+                    format!("{expanded}: {e}"),
                 ),
                 hint: "Check that private_key_file points to a valid PEM file".to_string(),
                 url: URL.to_string(),
@@ -302,7 +302,11 @@ impl LeaseBackend for GitHubAppBackend {
                 let body_text = response.text().await.unwrap_or_default();
                 return Err(FnoxError::ProviderApiError {
                     provider: "GitHub App".to_string(),
-                    details: ProviderDetails::relayed(format!("HTTP {status}"), &body_text),
+                    details: ProviderDetails::relayed_number(
+                        "HTTP {}",
+                        status.as_u16(),
+                        &body_text,
+                    ),
                     hint: "Failed to revoke GitHub installation token".to_string(),
                     url: URL.to_string(),
                 });

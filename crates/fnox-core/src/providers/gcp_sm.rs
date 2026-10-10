@@ -285,8 +285,8 @@ impl crate::providers::Provider for GoogleSecretManagerProvider {
                     FnoxError::ProviderApiError {
                         provider: "GCP Secret Manager".to_string(),
                         details: ProviderDetails::relayed(
-                            format!("Failed to access project '{}'", self.project),
-                            &err_str,
+                            "Failed to access project",
+                            format!("{}: {}", self.project, err_str),
                         ),
                         hint: "Check that the project exists and you have access".to_string(),
                         url: URL.to_string(),

@@ -584,9 +584,6 @@ async fn start_background_for_context(
 }
 
 pub async fn serve(cli: &Cli, idle_timeout: Duration) -> Result<()> {
-    // Errors rendered here are sent to clients that may not have asked for
-    // provider output, whatever flags started this process.
-    crate::env::set_provider_output_shown(false);
     #[cfg(not(unix))]
     {
         let _ = cli;
