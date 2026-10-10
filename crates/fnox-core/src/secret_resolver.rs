@@ -3,6 +3,7 @@ use crate::config::{Config, IfMissing, SecretConfig};
 use crate::env;
 use crate::error::{FnoxError, Result};
 use crate::providers::{ProviderConfig, get_provider_resolved};
+use crate::redact::Redacted;
 use crate::settings::Settings;
 use crate::source_registry;
 use crate::suggest::{find_similar, format_suggestions};
@@ -14,8 +15,12 @@ use std::collections::{HashMap, HashSet};
 /// Extract a value from JSON using dot notation (e.g., "nested.path")
 /// Supports escaped dots: "foo\.bar" accesses the literal key "foo.bar"
 fn extract_json_path(json_str: &str, path: &str) -> Result<String> {
-    let value: serde_json::Value = serde_json::from_str(json_str)
-        .map_err(|e| FnoxError::Config(format!("Failed to parse JSON secret: {}", e)))?;
+    let value: serde_json::Value = serde_json::from_str(json_str).map_err(|e| {
+        FnoxError::Config(format!(
+            "Failed to parse JSON secret: {}",
+            Redacted::message(&e.to_string())
+        ))
+    })?;
 
     let mut current = &value;
     for part in split_key_path(path) {

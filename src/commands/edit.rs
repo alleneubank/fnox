@@ -157,9 +157,9 @@ impl EditCommand {
         tracing::debug!("Reading modified temporary file");
         let modified_content = fs::read_to_string(&temp_path)
             .map_err(|e| FnoxError::Config(format!("Failed to read temporary file: {}", e)))?;
-        let mut modified_doc = modified_content
-            .parse::<DocumentMut>()
-            .map_err(|e| FnoxError::Config(format!("Invalid TOML after edit: {}", e)))?;
+        let mut modified_doc = modified_content.parse::<DocumentMut>().map_err(|e| {
+            FnoxError::config_parse("edited config", &modified_content, e.message(), e.span())
+        })?;
 
         // Step 7: Re-encrypt secrets in the modified document
         // This preserves all user edits (comments, formatting, non-secret config)
@@ -168,8 +168,9 @@ impl EditCommand {
         // Parse a fresh config from the modified content to recognize new providers
         // Strip the temp header first as it's not valid TOML
         let modified_toml = Self::strip_temp_header(&modified_content);
-        let modified_config: Config = toml_edit::de::from_str(&modified_toml)
-            .map_err(|e| FnoxError::Config(format!("Invalid configuration after edit: {}", e)))?;
+        let modified_config: Config = toml_edit::de::from_str(&modified_toml).map_err(|e| {
+            FnoxError::config_parse("edited config", &modified_toml, e.message(), e.span())
+        })?;
 
         self.reencrypt_secrets(&modified_config, &mut modified_doc, &all_secrets)
             .await?;

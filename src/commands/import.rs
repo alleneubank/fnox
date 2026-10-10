@@ -1,6 +1,7 @@
 use crate::commands::Cli;
 use crate::config::{self, Config};
 use crate::error::{FnoxError, Result};
+use crate::redact::Redacted;
 use console;
 use indexmap::IndexMap;
 use miette::{NamedSource, SourceSpan};
@@ -372,9 +373,9 @@ impl ImportCommand {
             let offset = self.offset_from_line_col(input, e.line(), e.column());
             FnoxError::ImportParseErrorWithSource {
                 format: "JSON".to_string(),
-                details: e.to_string(),
-                src: Arc::new(NamedSource::new(source_name, Arc::new(input.to_string()))),
-                span: SourceSpan::new(offset.into(), 1usize),
+                details: Redacted::message(&e.to_string()),
+                src: Arc::new(NamedSource::new(source_name, Redacted::all(input))),
+                span: Some(SourceSpan::new(offset.into(), 1usize)),
             }
         })?;
         self.extract_string_values(&data)
@@ -384,35 +385,30 @@ impl ImportCommand {
         let data: serde_yaml::Value = serde_yaml::from_str(input).map_err(|e| {
             // serde_yaml provides location via e.location()
             // Note: serde_yaml uses 0-indexed line/column, so we add 1 for our 1-indexed function
-            if let Some(loc) = e.location() {
+            let span = e.location().map(|loc| {
                 let offset = self.offset_from_line_col(input, loc.line() + 1, loc.column() + 1);
-                FnoxError::ImportParseErrorWithSource {
-                    format: "YAML".to_string(),
-                    details: e.to_string(),
-                    src: Arc::new(NamedSource::new(source_name, Arc::new(input.to_string()))),
-                    span: SourceSpan::new(offset.into(), 1usize),
-                }
-            } else {
-                FnoxError::Config(format!("Failed to parse YAML: {}", e))
+                SourceSpan::new(offset.into(), 1usize)
+            });
+            FnoxError::ImportParseErrorWithSource {
+                format: "YAML".to_string(),
+                details: Redacted::message(&e.to_string()),
+                src: Arc::new(NamedSource::new(source_name, Redacted::all(input))),
+                span,
             }
         })?;
         self.extract_string_values(&data)
     }
 
     fn parse_toml(&self, input: &str, source_name: &str) -> Result<HashMap<String, String>> {
-        let data: serde_json::Value = toml_edit::de::from_str(input).map_err(|e| {
-            // toml_edit provides span via e.span()
-            if let Some(span) = e.span() {
-                FnoxError::ImportParseErrorWithSource {
-                    format: "TOML".to_string(),
-                    details: e.to_string(),
-                    src: Arc::new(NamedSource::new(source_name, Arc::new(input.to_string()))),
-                    span: SourceSpan::new(span.start.into(), span.end - span.start),
-                }
-            } else {
-                FnoxError::Config(format!("Failed to parse TOML: {}", e))
-            }
-        })?;
+        let data: serde_json::Value =
+            toml_edit::de::from_str(input).map_err(|e| FnoxError::ImportParseErrorWithSource {
+                format: "TOML".to_string(),
+                details: Redacted::message(e.message()),
+                src: Arc::new(NamedSource::new(source_name, Redacted::toml(input))),
+                span: e
+                    .span()
+                    .map(|span| SourceSpan::new(span.start.into(), span.end - span.start)),
+            })?;
         self.extract_string_values(&data)
     }
 

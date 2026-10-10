@@ -10,7 +10,6 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::ops::Range;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use strum::{EnumString, VariantNames};
 
 /// Default config filename, used as the clap default for `--config`.
@@ -748,8 +747,6 @@ impl Config {
 
     /// Load configuration from a file
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Self> {
-        use miette::{NamedSource, SourceSpan};
-
         let path = path.as_ref();
         let content = fs::read_to_string(path).map_err(|source| FnoxError::ConfigReadFailed {
             path: path.to_path_buf(),
@@ -757,23 +754,10 @@ impl Config {
         })?;
 
         // Register the source for error reporting
-        let redacted_source = source_registry::register(path, &content);
+        source_registry::register(path, &content);
 
         let mut config: Config = toml_edit::de::from_str(&content).map_err(|e| {
-            // Try to create a source-aware error with span highlighting
-            if let Some(span) = e.span() {
-                FnoxError::ConfigParseErrorWithSource {
-                    message: e.message().to_string(),
-                    src: Arc::new(NamedSource::new(
-                        path.display().to_string(),
-                        redacted_source,
-                    )),
-                    span: SourceSpan::new(span.start.into(), span.end - span.start),
-                }
-            } else {
-                // Fall back to the basic error if no span available
-                FnoxError::ConfigParseError { source: e }
-            }
+            FnoxError::config_parse(path.display().to_string(), &content, e.message(), e.span())
         })?;
 
         if let Some(profile) = profile_name_from_file(path) {
@@ -1210,7 +1194,9 @@ impl Config {
         // Parse it back as a document so we can modify it
         let mut doc = pretty_string
             .parse::<toml_edit::DocumentMut>()
-            .map_err(|e| FnoxError::Config(format!("Failed to parse TOML: {}", e)))?;
+            .map_err(|e| {
+                FnoxError::config_parse("serialized config", &pretty_string, e.message(), e.span())
+            })?;
 
         // Convert secrets to inline tables
         Self::convert_secrets_to_inline(&mut doc)?;
@@ -1310,11 +1296,12 @@ impl Config {
                     source,
                 })?;
             content.parse::<DocumentMut>().map_err(|e| {
-                FnoxError::Config(format!(
-                    "Failed to parse TOML in {}: {}",
-                    target_file.display(),
-                    e
-                ))
+                FnoxError::config_parse(
+                    target_file.display().to_string(),
+                    &content,
+                    e.message(),
+                    e.span(),
+                )
             })?
         } else {
             DocumentMut::new()
@@ -1388,11 +1375,12 @@ impl Config {
                 source,
             })?;
         let mut doc = content.parse::<DocumentMut>().map_err(|e| {
-            FnoxError::Config(format!(
-                "Failed to parse TOML in {}: {}",
-                target_file.display(),
-                e
-            ))
+            FnoxError::config_parse(
+                target_file.display().to_string(),
+                &content,
+                e.message(),
+                e.span(),
+            )
         })?;
 
         // Navigate to the secrets table
@@ -1452,11 +1440,12 @@ impl Config {
                     source,
                 })?;
             content.parse::<DocumentMut>().map_err(|e| {
-                FnoxError::Config(format!(
-                    "Failed to parse TOML in {}: {}",
-                    target_file.display(),
-                    e
-                ))
+                FnoxError::config_parse(
+                    target_file.display().to_string(),
+                    &content,
+                    e.message(),
+                    e.span(),
+                )
             })?
         } else {
             DocumentMut::new()

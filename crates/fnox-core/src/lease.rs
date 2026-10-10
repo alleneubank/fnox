@@ -114,8 +114,9 @@ impl LeaseLedger {
             path: path.clone(),
             source: e,
         })?;
-        let ledger: Self = toml_edit::de::from_str(&content)
-            .map_err(|e| FnoxError::ConfigParseError { source: e })?;
+        let ledger: Self = toml_edit::de::from_str(&content).map_err(|e| {
+            FnoxError::config_parse(path.display().to_string(), &content, e.message(), e.span())
+        })?;
         Ok(ledger)
     }
 

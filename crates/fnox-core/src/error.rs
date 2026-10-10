@@ -1,10 +1,10 @@
 #![allow(unused_assignments)] // Fields are used by thiserror/miette macros but clippy doesn't see it
 
+use crate::redact::Redacted;
 use miette::{Diagnostic, NamedSource, SourceSpan};
 use std::sync::Arc;
 use thiserror::Error;
 
-/// A single validation issue (used with #[related] for multiple error reporting)
 /// The detail text of a provider error, split by who wrote it.
 ///
 /// `summary` is text fnox wrote and is always shown. `relayed` is text fnox did
@@ -143,17 +143,6 @@ pub enum FnoxError {
         source: std::io::Error,
     },
 
-    #[error("Invalid TOML in configuration file")]
-    #[diagnostic(
-        code(fnox::config::invalid_toml),
-        help("Check the TOML syntax in your fnox.toml file"),
-        url("https://fnox.jdx.dev/reference/configuration")
-    )]
-    ConfigParseError {
-        #[source]
-        source: toml_edit::de::Error,
-    },
-
     /// TOML parse error with source code context for precise error location display.
     #[error("{message}")]
     #[diagnostic(
@@ -162,11 +151,11 @@ pub enum FnoxError {
         url("https://fnox.jdx.dev/reference/configuration")
     )]
     ConfigParseErrorWithSource {
-        message: String,
+        message: Redacted,
         #[source_code]
-        src: Arc<NamedSource<Arc<String>>>,
+        src: Arc<NamedSource<Redacted>>,
         #[label("parse error here")]
-        span: SourceSpan,
+        span: Option<SourceSpan>,
     },
 
     #[error("Failed to serialize configuration to TOML")]
@@ -314,7 +303,7 @@ pub enum FnoxError {
         profile: String,
         suggestion: Option<String>,
         #[source_code]
-        src: Arc<NamedSource<Arc<String>>>,
+        src: Arc<NamedSource<Redacted>>,
         #[label("provider '{provider}' referenced here")]
         span: SourceSpan,
     },
@@ -335,7 +324,7 @@ pub enum FnoxError {
         provider: String,
         profile: String,
         #[source_code]
-        src: Arc<NamedSource<Arc<String>>>,
+        src: Arc<NamedSource<Redacted>>,
         #[label("default_provider '{provider}' set here, but no such provider exists")]
         span: SourceSpan,
     },
@@ -628,11 +617,11 @@ pub enum FnoxError {
     )]
     ImportParseErrorWithSource {
         format: String,
-        details: String,
+        details: Redacted,
         #[source_code]
-        src: Arc<NamedSource<Arc<String>>>,
+        src: Arc<NamedSource<Redacted>>,
         #[label("parse error here")]
-        span: SourceSpan,
+        span: Option<SourceSpan>,
     },
 
     #[error("Provider '{provider}' cannot be used for import")]
@@ -793,12 +782,6 @@ impl From<serde_yaml::Error> for FnoxError {
     }
 }
 
-impl From<toml_edit::de::Error> for FnoxError {
-    fn from(source: toml_edit::de::Error) -> Self {
-        FnoxError::ConfigParseError { source }
-    }
-}
-
 impl From<toml_edit::ser::Error> for FnoxError {
     fn from(source: toml_edit::ser::Error) -> Self {
         FnoxError::ConfigSerializeError { source }
@@ -815,6 +798,23 @@ impl From<miette::ErrReport> for FnoxError {
 
 impl FnoxError {
     /// Returns true if this error represents a provider authentication failure.
+    /// A TOML parse error for `source_name`, rendered from masked text only.
+    ///
+    /// `content` is the text that failed to parse; `message` and `span` come
+    /// from the parser (`toml_edit::de::Error` or `toml_edit::TomlError`).
+    pub fn config_parse(
+        source_name: impl AsRef<str>,
+        content: &str,
+        message: &str,
+        span: Option<std::ops::Range<usize>>,
+    ) -> Self {
+        FnoxError::ConfigParseErrorWithSource {
+            message: Redacted::message(message),
+            src: Arc::new(NamedSource::new(source_name, Redacted::toml(content))),
+            span: span.map(|span| SourceSpan::new(span.start.into(), span.end - span.start)),
+        }
+    }
+
     pub fn is_auth_error(&self) -> bool {
         matches!(self, FnoxError::ProviderAuthFailed { .. })
     }

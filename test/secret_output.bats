@@ -80,6 +80,87 @@ EOF
 	[[ $stderr != *"fake-token-value"* ]]
 }
 
+@test "config type errors do not echo the offending value" {
+	cat >fnox.toml <<'EOF'
+root = true
+
+[secrets]
+TOKEN = { provider = "plain", value = "x", env = "fake-env-value" }
+EOF
+
+	run --separate-stderr "$FNOX_BIN" get TOKEN
+	assert_failure
+	[[ $stderr == *"fnox.toml"* ]]
+	[[ $stderr != *"fake-env-value"* ]]
+}
+
+@test "malformed config lines do not echo values" {
+	cat >fnox.toml <<'EOF'
+root = true
+
+[secrets]
+A = { provider = "plain", value = "fake-dotted-value". }
+EOF
+	run --separate-stderr "$FNOX_BIN" get A
+	assert_failure
+	[[ $stderr != *"fake-dotted-value"* ]]
+
+	cat >fnox.toml <<'EOF'
+root = true
+
+[secrets]
+A = { provider = "plain", value = fake-bare-value }
+EOF
+	run --separate-stderr "$FNOX_BIN" get A
+	assert_failure
+	[[ $stderr != *"fake-bare-value"* ]]
+}
+
+@test "import parse errors do not echo the input" {
+	cat >fnox.toml <<'EOF'
+root = true
+
+[providers.plain]
+type = "plain"
+EOF
+
+	printf '{"TOKEN": "fake-json-value",}' >input.json
+	run --separate-stderr "$FNOX_BIN" import json --dry-run -p plain -i input.json
+	assert_failure
+	[[ $stderr != *"fake-json-value"* ]]
+
+	printf 'TOKEN = "fake-toml-value" trailing\n' >input.toml
+	run --separate-stderr "$FNOX_BIN" import toml --dry-run -p plain -i input.toml
+	assert_failure
+	[[ $stderr != *"fake-toml-value"* ]]
+
+	printf 'TOKEN: "fake-yaml-value\n  bad: [' >input.yaml
+	run --separate-stderr "$FNOX_BIN" import yaml --dry-run -p plain -i input.yaml
+	assert_failure
+	[[ $stderr != *"fake-yaml-value"* ]]
+}
+
+@test "edit does not echo decrypted values when the edited file is invalid" {
+	cat >fnox.toml <<'EOF'
+root = true
+
+[providers.plain]
+type = "plain"
+
+[secrets]
+TOKEN = { provider = "plain", value = "fake-edit-value" }
+EOF
+	cat >"$TEST_TEMP_DIR/bin/break-toml" <<'EOF'
+#!/bin/sh
+printf 'BROKEN = "fake-edit-value" trailing\n' >>"$1"
+EOF
+	chmod +x "$TEST_TEMP_DIR/bin/break-toml"
+
+	EDITOR=break-toml run --separate-stderr "$FNOX_BIN" edit
+	assert_failure
+	[[ $stderr != *"fake-edit-value"* ]]
+}
+
 @test "daemon get fails non-zero when the provider fails in non-interactive mode" {
 	fake_pass <<'EOF'
 #!/bin/sh
